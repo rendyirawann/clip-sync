@@ -132,7 +132,7 @@ def analyze_audio_with_gemini(audio_path, api_key):
        - If the audio is in Indonesian, you should fill both 'text_en' and 'text_id' with the Indonesian transcript (or leave 'text_en' blank/null).
     3. Identify exactly 3 highly engaging, viral, or interesting highlight segments/clips. Each segment should be between 30 to 90 seconds. These are the peak moments.
     4. Provide the exact start and end seconds relative to the audio file.
-    5. Generate a catchy, viral title and description for each clip.
+    5. Generate a catchy, highly engaging, viral title for each clip, and an extremely appealing social media description (captions) in natural Indonesian explaining what makes this clip amazing, followed by a list of trending/viral hashtags (like #fyp, #viral, #foryou, #podcast, etc.) optimized for TikTok, Instagram Reels, and YouTube Shorts so the user can easily copy-paste and post directly.
     6. For each clip, extract the list of subtitle lines with precise start and end times in seconds, relative to the main video.
 
     You MUST output your response strictly as a JSON object, with no markdown code blocks or extra text. Use the following JSON schema:
@@ -140,7 +140,7 @@ def analyze_audio_with_gemini(audio_path, api_key):
       "clips": [
         {
           "title": "Viral Catchy Title",
-          "description": "Brief explanation why this segment is interesting",
+          "description": "Engaging Indonesian caption summarizing the clip... \n\n#fyp #viral #foryou #podcast",
           "start_seconds": 45,
           "end_seconds": 95,
           "subtitles": [
@@ -225,7 +225,7 @@ def analyze_audio_locally(audio_path, whisper_model_size, ollama_model):
     You are an expert video clipper assistant. Your objective is to analyze the following transcript text and perform the tasks:
     1. Analyze the transcript dialogue and identify exactly 3 highly engaging, viral, or interesting highlight segments/clips. Each segment should be between 30 to 90 seconds.
     2. Provide the exact start and end seconds relative to the audio file.
-    3. Generate a catchy, viral title and description for each clip.
+    3. Generate a catchy, highly engaging, viral title for each clip, and an extremely appealing social media description (captions) in natural Indonesian explaining what makes this clip amazing, followed by a list of trending/viral hashtags (like #fyp, #viral, #foryou, #podcast, etc.) optimized for TikTok, Instagram Reels, and YouTube Shorts so the user can easily copy-paste and post directly.
     4. Provide the exact subtitles for each clip.
        - If the dialogue is in English, you MUST provide BOTH the original English text ('text_en') and the Indonesian translation ('text_id').
        - If the dialogue is in Indonesian, you should fill both 'text_en' and 'text_id' with the Indonesian transcript.
@@ -238,7 +238,7 @@ def analyze_audio_locally(audio_path, whisper_model_size, ollama_model):
       "clips": [
         {{
           "title": "Viral Catchy Title",
-          "description": "Brief explanation why this segment is interesting",
+          "description": "Engaging Indonesian caption summarizing the clip... \n\n#fyp #viral #foryou #podcast",
           "start_seconds": 45,
           "end_seconds": 95,
           "subtitles": [
@@ -386,14 +386,40 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     video_path = None
+    video_title = "Video Project"
+    
     try:
         # Step 1: Download YouTube if applicable
         if args.type == "youtube":
+            # Extract YouTube title using yt-dlp first
+            try:
+                print("Querying YouTube metadata for video title...")
+                title_cmd = [args.ytdlp_path, "--get-title", args.source]
+                try:
+                    res = subprocess.run(title_cmd, capture_output=True, text=True, check=True)
+                    video_title = res.stdout.strip()
+                except FileNotFoundError:
+                    title_cmd = [sys.executable, "-m", "yt_dlp", "--get-title", args.source]
+                    res = subprocess.run(title_cmd, capture_output=True, text=True, check=True)
+                    video_title = res.stdout.strip()
+                print(f"Extracted YouTube title: {video_title}")
+            except Exception as e:
+                print(f"Warning: Failed to extract YouTube title: {e}")
+                video_title = "YouTube Video"
+
             video_path = download_youtube(args.source, args.output_dir, args.ytdlp_path)
         else:
             video_path = args.source
             if not os.path.exists(video_path):
                 raise FileNotFoundError(f"Uploaded source video not found at: {video_path}")
+            
+            # Extract clean upload title
+            raw_title = os.path.splitext(os.path.basename(video_path))[0]
+            clean_title = re.sub(r'^\d+_[a-f0-9]+_', '', raw_title)
+            clean_title = re.sub(r'^\d+_[a-zA-Z0-9]+_', '', clean_title)
+            clean_title = re.sub(r'^\d+_', '', clean_title)
+            video_title = clean_title.replace('_', ' ').replace('-', ' ').title()
+            print(f"Extracted uploaded file title: {video_title}")
                 
         # Step 2: Extract audio
         audio_path = extract_audio(video_path, args.output_dir, args.ffmpeg_path)
@@ -450,6 +476,7 @@ def main():
         # Output final result back as JSON for Laravel
         output_result = {
             'status': 'success',
+            'video_title': video_title,
             'source_video_downloaded': video_path if args.type == "youtube" else None,
             'clips': clips_data
         }

@@ -154,6 +154,13 @@ class ProcessVideoJob implements ShouldQueue
             // Slicing and writing clips completed. Let's record them in the DB!
             $video->update(['status' => 'clipping']);
 
+            // Update video title dynamically if it was left blank by the user
+            if (isset($successJson['video_title']) && !empty($successJson['video_title'])) {
+                if (empty($video->title) || str_starts_with($video->title, 'Video Clipper ')) {
+                    $video->update(['title' => $successJson['video_title']]);
+                }
+            }
+
             // If youtube video, we can save its path in the database for reference
             if ($video->source_type === 'youtube' && isset($successJson['source_video_downloaded'])) {
                 $relativeDownloadedPath = "clipper/{$video->id}/source_video.mp4";

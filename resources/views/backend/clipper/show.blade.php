@@ -121,9 +121,24 @@
                                                     <span class="text-muted fs-8 fw-semibold">⏱️ {{ $clip->start_time }} - {{ $clip->end_time }}</span>
                                                 </div>
                                                 
-                                                <h3 class="text-gray-900 fw-bold fs-5 mb-2">{{ $clip->title }}</h3>
-                                                <p class="text-muted fs-7 mb-4 truncate-3-lines">{{ $clip->description }}</p>
-                                                
+                                                <!-- Caption Mockup Box (Draft Post) -->
+                                                <div class="bg-light rounded p-4 mb-4 border border-gray-200 position-relative">
+                                                    <span class="badge badge-light-dark fw-bold fs-9 px-2 py-1 position-absolute end-0 top-0 mt-3 me-3">Draft Post 📱</span>
+                                                    
+                                                    <span class="text-gray-600 fw-bold fs-9 d-block mb-1 text-uppercase tracking-wider">Judul Video:</span>
+                                                    <h4 class="text-gray-900 fw-bold fs-6 mb-3 clip-title-text">{{ $clip->title }}</h4>
+                                                    
+                                                    <span class="text-gray-600 fw-bold fs-9 d-block mb-1 text-uppercase tracking-wider">Caption & Hashtags (FYP):</span>
+                                                    <p class="text-gray-800 fs-7 mb-0 lh-base clip-desc-text" style="white-space: pre-line;">{{ $clip->description }}</p>
+                                                    
+                                                    <div class="mt-4 pt-3 border-top border-gray-200 d-flex justify-content-end">
+                                                        <button type="button" class="btn btn-light-primary btn-sm py-2 px-3 d-inline-flex align-items-center fw-bold fs-8" onclick="copyCaption(this)">
+                                                            <i class="ki-duotone ki-copy fs-6 me-1.5"><span class="path1"></span><span class="path2"></span></i>
+                                                            Salin Judul & Caption
+                                                        </button>
+                                                    </div>
+                                                </div>
+
                                                 <!-- Interactive Transcript Box -->
                                                 <div class="transcript-wrapper mb-4">
                                                     <span class="text-gray-800 fw-bold fs-8 d-block mb-2">📜 Transkrip & Subtitle (Klik Baris untuk Jump):</span>
@@ -214,6 +229,53 @@ function jumpToTime(playerId, seconds) {
         // Scroll video player into view smoothly
         video.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+}
+
+// Premium click-to-copy social media caption and hashtags helper
+function copyCaption(button) {
+    const card = button.closest('.bg-light');
+    if (!card) return;
+    
+    const titleEl = card.querySelector('.clip-title-text');
+    const descEl = card.querySelector('.clip-desc-text');
+    
+    if (!titleEl || !descEl) return;
+    
+    const title = titleEl.innerText ? titleEl.innerText.trim() : '';
+    const description = descEl.innerText ? descEl.innerText.trim() : '';
+    
+    const textToCopy = `Judul: ${title}\n\n${description}`;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        // Success button feedback
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="ki-duotone ki-check fs-6 me-1.5"><span class="path1"></span></i>Tersalin!';
+        button.classList.remove('btn-light-primary');
+        button.classList.add('btn-success');
+        
+        // SweetAlert2 Toast pop up
+        if (typeof Swal !== 'undefined') {
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2500,
+                timerProgressBar: true
+            });
+            Toast.fire({
+                icon: 'success',
+                title: 'Judul, Caption & Hashtag disalin!'
+            });
+        }
+        
+        setTimeout(() => {
+            button.innerHTML = originalHtml;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-light-primary');
+        }, 2500);
+    }).catch(err => {
+        console.error('Gagal menyalin text: ', err);
+    });
 }
 </script>
 @endsection
