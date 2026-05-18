@@ -80,10 +80,22 @@ class ProcessVideoJob implements ShouldQueue
             // Construct python command
             $cliEnginePath = base_path('clipper.py');
             
+            // Detect Python virtual environment automatically
+            $pythonPath = 'python';
+            $venvPathWin = base_path('.venv/Scripts/python.exe');
+            $venvPathLinux = base_path('.venv/bin/python');
+            
+            if (file_exists($venvPathWin)) {
+                $pythonPath = $venvPathWin;
+            } elseif (file_exists($venvPathLinux)) {
+                $pythonPath = $venvPathLinux;
+            }
+            
             $command = [
-                'python',
+                $pythonPath,
                 $cliEnginePath,
                 '--source', $sourceInput,
+
                 '--type', $video->source_type,
                 '--output-dir', $outputDirAbs,
                 '--provider', $aiProvider,
