@@ -43,7 +43,7 @@
                     <div class="mb-6 rounded overflow-hidden shadow-sm bg-dark position-relative" style="aspect-ratio: 16/9;">
                         @if($video->file_path)
                             <video controls class="w-100 h-100" style="object-fit: contain;">
-                                <source src="{{ asset('storage/' . $video->file_path) }}" type="video/mp4">
+                                <source src="/storage/{{ $video->file_path }}" type="video/mp4">
                                 Browser Anda tidak mendukung HTML5 video.
                             </video>
                         @else
@@ -96,9 +96,15 @@
                     <div class="mb-4">
                         <span class="text-muted fw-semibold d-block fs-8">Mesin Pemroses</span>
                         <span class="text-gray-800 fs-7 fw-bold d-block mt-1">
-                            <span class="badge badge-light-success border border-success border-dashed px-3 py-1 fs-8 text-success me-2">
-                                <i class="ki-duotone ki-electricity fs-6 text-success me-1"><span class="path1"></span><span class="path2"></span></i> Gemini 1.5 Flash
-                            </span>
+                            @if(($video->provider ?? 'gemini') === 'local')
+                                <span class="badge badge-light-warning border border-warning border-dashed px-3 py-1 fs-8 text-warning me-2" data-bs-toggle="tooltip" title="Offline AI Engine (Whisper + Ollama)">
+                                    <i class="ki-duotone ki-home-trend-up fs-6 text-warning me-1"><span class="path1"></span><span class="path2"></span></i> Local ({{ $video->model ?? 'Ollama' }})
+                                </span>
+                            @else
+                                <span class="badge badge-light-success border border-success border-dashed px-3 py-1 fs-8 text-success me-2" data-bs-toggle="tooltip" title="Cloud AI Engine (Google Gemini)">
+                                    <i class="ki-duotone ki-electricity fs-6 text-success me-1"><span class="path1"></span><span class="path2"></span></i> {{ $video->model ?? 'Gemini 1.5 Flash' }}
+                                </span>
+                            @endif
                             <span class="badge badge-light-info border border-info border-dashed px-3 py-1 fs-8 text-info">
                                 <i class="ki-duotone ki-briefcase fs-6 text-info me-1"><span class="path1"></span><span class="path2"></span></i> FFmpeg
                             </span>
@@ -126,11 +132,23 @@
                                 <div class="card border border-gray-200 shadow-none hover-shadow-sm transition-all mb-4">
                                     <div class="row g-0 align-items-stretch">
                                         <!-- Player Column -->
-                                        <div class="col-xl-6 bg-dark rounded-start overflow-hidden d-flex align-items-center justify-content-center" style="min-height: 250px;">
-                                            <video id="player_{{ $clip->id }}" controls class="w-100 h-100" style="object-fit: contain;" crossorigin="anonymous">
-                                                <source src="{{ asset('storage/' . $clip->file_path) }}" type="video/mp4">
+                                        <div class="col-xl-6 bg-dark rounded-start overflow-hidden d-flex align-items-center justify-content-center position-relative" style="min-height: 250px;">
+                                            <!-- Floating Live Slicing Timer Card -->
+                                            <div class="position-absolute top-0 start-0 m-4 p-3 rounded bg-dark bg-opacity-75 text-white fs-8 fw-semibold border border-white border-opacity-10 shadow d-flex flex-column gap-1" style="z-index: 10; backdrop-filter: blur(4px);">
+                                                <div class="d-flex align-items-center">
+                                                    <span class="bullet bullet-dot bg-danger h-8px w-8px pulse-red me-2"></span>
+                                                    <span>Slicing Timer: <span id="timer_stopwatch_{{ $clip->id }}" class="text-warning">00:00</span></span>
+                                                </div>
+                                                <div class="text-white-50 fs-9 d-flex align-items-center mt-1">
+                                                    <i class="ki-duotone ki-time fs-8 text-primary me-1.5"><span class="path1"></span><span class="path2"></span></i>
+                                                    <span>Waktu Asli: <span id="timer_absolute_{{ $clip->id }}" class="text-success">{{ $clip->start_time }}</span></span>
+                                                </div>
+                                            </div>
+
+                                            <video id="player_{{ $clip->id }}" data-start-seconds="{{ $clip->start_seconds }}" controls class="w-100 h-100" style="object-fit: contain;" crossorigin="anonymous">
+                                                <source src="/storage/{{ $clip->file_path }}" type="video/mp4">
                                                 <!-- Dual Subtitles Track -->
-                                                <track src="{{ asset('storage/clipper/' . $video->id . '/clip_' . $loop->iteration . '_sub.vtt') }}" kind="subtitles" srclang="id" label="Indo-En Dual Sub" default>
+                                                <track src="/storage/clipper/{{ $video->id }}/clip_{{ $loop->iteration }}_sub.vtt" kind="subtitles" srclang="id" label="Indo-En Dual Sub" default>
                                                 Browser Anda tidak mendukung HTML5 video.
                                             </video>
                                         </div>
@@ -191,11 +209,11 @@
 
                                             <!-- Download and Actions -->
                                             <div class="d-flex align-items-center gap-3 pt-3 border-top border-gray-100">
-                                                <a href="{{ asset('storage/' . $clip->file_path) }}" download class="btn btn-sm btn-success w-100 py-3 d-flex align-items-center justify-content-center fw-bold">
+                                                <a href="/storage/{{ $clip->file_path }}" download class="btn btn-sm btn-success w-100 py-3 d-flex align-items-center justify-content-center fw-bold">
                                                     <i class="ki-duotone ki-cloud-download fs-5 me-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
                                                     Download Klip (.MP4)
                                                 </a>
-                                                <a href="{{ asset('storage/clipper/' . $video->id . '/clip_' . $loop->iteration . '_sub.srt') }}" download class="btn btn-sm btn-light-info py-3 px-4" data-bs-toggle="tooltip" title="Download Subtitle SRT">
+                                                <a href="/storage/clipper/{{ $video->id }}/clip_{{ $loop->iteration }}_sub.srt" download class="btn btn-sm btn-light-info py-3 px-4" data-bs-toggle="tooltip" title="Download Subtitle SRT">
                                                     SRT
                                                 </a>
                                             </div>
@@ -242,6 +260,37 @@
     -webkit-box-orient: vertical;  
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Style HTML5 video subtitles (cues) */
+video::cue {
+    color: #ffeb3b !important; /* Premium Yellow */
+    background-color: rgba(0, 0, 0, 0.75) !important; /* Semi-transparent black background */
+    font-size: 1.1rem !important;
+    font-weight: bold !important;
+    font-family: 'Inter', sans-serif !important;
+    line-height: 1.5 !important;
+}
+
+/* Pulsing Red Dot Animation */
+@keyframes pulse-red {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(241, 65, 108, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 5px rgba(241, 65, 108, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(241, 65, 108, 0);
+    }
+}
+.pulse-red {
+    box-shadow: 0 0 0 0 rgba(241, 65, 108, 0.7);
+    animation: pulse-red 2s infinite;
+    border-radius: 50%;
 }
 </style>
 
@@ -304,5 +353,46 @@ function copyCaption(button) {
         console.error('Gagal menyalin text: ', err);
     });
 }
+
+// Dynamic Stopwatch & Original Cut Time Sync
+document.addEventListener('DOMContentLoaded', function() {
+    const players = document.querySelectorAll('video');
+    players.forEach(video => {
+        if (!video.id.startsWith('player_')) return;
+        
+        const clipId = video.id.replace('player_', '');
+        const stopwatchSpan = document.getElementById(`timer_stopwatch_${clipId}`);
+        const absoluteSpan = document.getElementById(`timer_absolute_${clipId}`);
+        
+        video.addEventListener('timeupdate', function() {
+            const startSec = parseFloat(video.getAttribute('data-start-seconds')) || 0;
+            const currentTime = video.currentTime;
+            
+            // 1. Format stopwatch time (MM:SS)
+            const stopwatchSecs = Math.floor(currentTime);
+            const stopMins = Math.floor(stopwatchSecs / 60);
+            const stopSecs = stopwatchSecs % 60;
+            if (stopwatchSpan) {
+                stopwatchSpan.innerText = `${String(stopMins).padStart(2, '0')}:${String(stopSecs).padStart(2, '0')}`;
+            }
+            
+            // 2. Format absolute cut time (HH:MM:SS)
+            const absoluteSecs = Math.floor(startSec + currentTime);
+            const absHrs = Math.floor(absoluteSecs / 3600);
+            const absMins = Math.floor((absoluteSecs % 3600) / 60);
+            const absSecs = absoluteSecs % 60;
+            
+            let absoluteText = '';
+            if (absHrs > 0) {
+                absoluteText = `${String(absHrs).padStart(2, '0')}:${String(absMins).padStart(2, '0')}:${String(absSecs).padStart(2, '0')}`;
+            } else {
+                absoluteText = `${String(absMins).padStart(2, '0')}:${String(absSecs).padStart(2, '0')}`;
+            }
+            if (absoluteSpan) {
+                absoluteSpan.innerText = absoluteText;
+            }
+        });
+    });
+});
 </script>
 @endsection

@@ -26,7 +26,7 @@ class ProcessVideoJob implements ShouldQueue
      *
      * @var int
      */
-    public $timeout = 1200; // 20 minutes
+    public $timeout = 3600; // 1 hour
 
     /**
      * Create a new job instance.
@@ -53,11 +53,12 @@ class ProcessVideoJob implements ShouldQueue
             }
 
             // Retrieve configuration values
-            $aiProvider = env('AI_PROVIDER', 'gemini');
-            $ollamaModel = env('OLLAMA_MODEL', 'llama3');
+            $aiProvider = $video->provider ?: env('AI_PROVIDER', 'gemini');
+            $ollamaModel = ($video->provider === 'local' ? $video->model : null) ?: env('OLLAMA_MODEL', 'llama3');
             $whisperModel = env('WHISPER_MODEL', 'base');
             $ffmpegPath = env('FFMPEG_PATH', 'ffmpeg');
             $ytdlpPath = env('YT_DLP_PATH', 'yt-dlp');
+            $whisperDevice = env('WHISPER_DEVICE', 'cpu');
 
             $geminiKey = env('GEMINI_API_KEY');
             if ($aiProvider === 'gemini' && empty($geminiKey)) {
@@ -95,13 +96,21 @@ class ProcessVideoJob implements ShouldQueue
                 $pythonPath,
                 $cliEnginePath,
                 '--source', $sourceInput,
-
                 '--type', $video->source_type,
                 '--output-dir', $outputDirAbs,
                 '--provider', $aiProvider,
                 '--ffmpeg-path', $ffmpegPath,
-                '--ytdlp-path', $ytdlpPath
+                '--ytdlp-path', $ytdlpPath,
+                '--clip-count', (string)($video->clip_count ?? 3),
+                '--clip-duration-min', (string)($video->clip_duration_min ?? 30),
+                '--clip-duration-max', (string)($video->clip_duration_max ?? 90),
+                '--orientation', $video->orientation ?: '16:9',
             ];
+
+            if ($video->watermark) {
+                $command[] = '--watermark';
+                $command[] = $video->watermark;
+            }
 
             if ($aiProvider === 'gemini') {
                 $command[] = '--api-key';
@@ -111,6 +120,8 @@ class ProcessVideoJob implements ShouldQueue
                 $command[] = $ollamaModel;
                 $command[] = '--whisper-model';
                 $command[] = $whisperModel;
+                $command[] = '--whisper-device';
+                $command[] = $whisperDevice;
             }
 
             Log::info("Running Video Clipper Python Engine ({$aiProvider}) for Video ID: {$video->id}", ['command' => $command]);
@@ -128,7 +139,7 @@ class ProcessVideoJob implements ShouldQueue
             }
 
             $output = $process->getOutput();
-            Log::info("Python Clipper execution output captured for Video ID: {$video->id}");
+            Log::info("Python Clipper execution output captured for Video ID: {$video->id}", ['output' => $output]);
 
             // Extract JSON from output markers
             $successJson = null;

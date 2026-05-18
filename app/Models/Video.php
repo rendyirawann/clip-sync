@@ -19,6 +19,13 @@ class Video extends Model
         'source_url',
         'youtube_channel',
         'file_path',
+        'clip_count',
+        'clip_duration_min',
+        'clip_duration_max',
+        'watermark',
+        'provider',
+        'model',
+        'orientation',
         'status',
         'error_message',
     ];
