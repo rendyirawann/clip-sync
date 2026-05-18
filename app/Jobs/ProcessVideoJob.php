@@ -161,6 +161,14 @@ class ProcessVideoJob implements ShouldQueue
                 }
             }
 
+            // Save original title and youtube channel details
+            if (isset($successJson['original_title']) && !empty($successJson['original_title'])) {
+                $video->update(['original_title' => $successJson['original_title']]);
+            }
+            if (isset($successJson['youtube_channel']) && !empty($successJson['youtube_channel'])) {
+                $video->update(['youtube_channel' => $successJson['youtube_channel']]);
+            }
+
             // If youtube video, we can save its path in the database for reference
             if ($video->source_type === 'youtube' && isset($successJson['source_video_downloaded'])) {
                 $relativeDownloadedPath = "clipper/{$video->id}/source_video.mp4";

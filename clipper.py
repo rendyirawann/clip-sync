@@ -134,9 +134,11 @@ def analyze_audio_with_gemini(audio_path, api_key):
     4. Provide the exact start and end seconds relative to the audio file.
     5. Generate a catchy, highly engaging, viral title for each clip, and an extremely appealing social media description (captions) in natural Indonesian explaining what makes this clip amazing, followed by a list of trending/viral hashtags (like #fyp, #viral, #foryou, #podcast, etc.) optimized for TikTok, Instagram Reels, and YouTube Shorts so the user can easily copy-paste and post directly.
     6. For each clip, extract the list of subtitle lines with precise start and end times in seconds, relative to the main video.
+    7. Generate a catchy, clickbaity overall title for the entire video project ('project_title') in natural Indonesian summarizing the whole conversation context.
 
     You MUST output your response strictly as a JSON object, with no markdown code blocks or extra text. Use the following JSON schema:
     {
+      "project_title": "Catchy Overall Video Project Title",
       "clips": [
         {
           "title": "Viral Catchy Title",
@@ -229,12 +231,14 @@ def analyze_audio_locally(audio_path, whisper_model_size, ollama_model):
     4. Provide the exact subtitles for each clip.
        - If the dialogue is in English, you MUST provide BOTH the original English text ('text_en') and the Indonesian translation ('text_id').
        - If the dialogue is in Indonesian, you should fill both 'text_en' and 'text_id' with the Indonesian transcript.
+    5. Generate a catchy, clickbaity overall title for the entire video project ('project_title') in natural Indonesian summarizing the whole conversation context.
 
     Transcript Dialogue:
     {full_transcript_text}
 
     You MUST output your response strictly as a JSON object, with no markdown code blocks, backticks, or extra text. Use the following JSON schema:
     {{
+      "project_title": "Catchy Overall Video Project Title",
       "clips": [
         {{
           "title": "Viral Catchy Title",
@@ -386,26 +390,33 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     video_path = None
-    video_title = "Video Project"
+    original_title = "Video Project"
+    youtube_channel = None
     
     try:
         # Step 1: Download YouTube if applicable
         if args.type == "youtube":
-            # Extract YouTube title using yt-dlp first
+            # Extract YouTube title and channel name using yt-dlp first
             try:
-                print("Querying YouTube metadata for video title...")
-                title_cmd = [args.ytdlp_path, "--get-title", args.source]
+                print("Querying YouTube metadata for video title and channel name...")
+                print_cmd = [args.ytdlp_path, "--print", "%(title)s", "--print", "%(uploader)s", args.source]
                 try:
+                    res = subprocess.run(print_cmd, capture_output=True, text=True, check=True)
+                    lines = [line.strip() for line in res.stdout.strip().split('\n') if line.strip()]
+                    if len(lines) >= 2:
+                        original_title = lines[0]
+                        youtube_channel = lines[1]
+                    elif len(lines) == 1:
+                        original_title = lines[0]
+                except Exception as e:
+                    title_cmd = [args.ytdlp_path, "--get-title", args.source]
                     res = subprocess.run(title_cmd, capture_output=True, text=True, check=True)
-                    video_title = res.stdout.strip()
-                except FileNotFoundError:
-                    title_cmd = [sys.executable, "-m", "yt_dlp", "--get-title", args.source]
-                    res = subprocess.run(title_cmd, capture_output=True, text=True, check=True)
-                    video_title = res.stdout.strip()
-                print(f"Extracted YouTube title: {video_title}")
+                    original_title = res.stdout.strip()
+                print(f"Extracted YouTube title: {original_title}")
+                print(f"Extracted YouTube channel: {youtube_channel}")
             except Exception as e:
                 print(f"Warning: Failed to extract YouTube title: {e}")
-                video_title = "YouTube Video"
+                original_title = "YouTube Video"
 
             video_path = download_youtube(args.source, args.output_dir, args.ytdlp_path)
         else:
@@ -418,8 +429,8 @@ def main():
             clean_title = re.sub(r'^\d+_[a-f0-9]+_', '', raw_title)
             clean_title = re.sub(r'^\d+_[a-zA-Z0-9]+_', '', clean_title)
             clean_title = re.sub(r'^\d+_', '', clean_title)
-            video_title = clean_title.replace('_', ' ').replace('-', ' ').title()
-            print(f"Extracted uploaded file title: {video_title}")
+            original_title = clean_title.replace('_', ' ').replace('-', ' ').title()
+            print(f"Extracted uploaded file title: {original_title}")
                 
         # Step 2: Extract audio
         audio_path = extract_audio(video_path, args.output_dir, args.ffmpeg_path)
@@ -476,7 +487,9 @@ def main():
         # Output final result back as JSON for Laravel
         output_result = {
             'status': 'success',
-            'video_title': video_title,
+            'video_title': ai_analysis.get('project_title', original_title),
+            'original_title': original_title,
+            'youtube_channel': youtube_channel,
             'source_video_downloaded': video_path if args.type == "youtube" else None,
             'clips': clips_data
         }

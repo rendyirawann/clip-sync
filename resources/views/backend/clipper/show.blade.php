@@ -16,6 +16,11 @@
                 <li class="breadcrumb-item text-gray-900">Detail Project</li>
             </ul>
             <h1 class="text-gray-900 fw-bold fs-1 mt-2">Detail Clipper: {{ $video->title }} 🎬</h1>
+            @if(!empty($video->original_title) && $video->original_title !== $video->title)
+                <span class="text-muted fs-6 fw-semibold d-block mt-1">
+                    Original: <span class="fst-italic text-gray-700 fw-bold">{{ $video->original_title }}</span>
+                </span>
+            @endif
         </div>
         <div>
             <a href="{{ route('clipper.index') }}" class="btn btn-light-primary d-flex align-items-center">
@@ -65,6 +70,24 @@
                         </div>
                     </div>
                     
+                    @if($video->source_type === 'youtube' && !empty($video->youtube_channel))
+                    <div class="mb-4">
+                        <span class="text-muted fw-semibold d-block fs-8">Channel YouTube</span>
+                        <span class="text-gray-800 fs-7 fw-bold d-block mt-1">
+                            <i class="fab fa-youtube text-danger me-1"></i> {{ $video->youtube_channel }}
+                        </span>
+                    </div>
+                    @endif
+
+                    @if(!empty($video->original_title) && $video->original_title !== $video->title)
+                    <div class="mb-4">
+                        <span class="text-muted fw-semibold d-block fs-8">Judul Asli</span>
+                        <span class="text-gray-800 fs-7 fw-semibold d-block mt-1 lh-sm">
+                            {{ $video->original_title }}
+                        </span>
+                    </div>
+                    @endif
+
                     <div class="mb-4">
                         <span class="text-muted fw-semibold d-block fs-8">Selesai Diproses</span>
                         <span class="text-gray-800 fs-7 fw-bold d-block mt-1">{{ $video->updated_at->timezone('Asia/Jakarta')->format('d F Y - H:i T') }}</span>
@@ -129,7 +152,11 @@
                                                     <h4 class="text-gray-900 fw-bold fs-6 mb-3 clip-title-text">{{ $clip->title }}</h4>
                                                     
                                                     <span class="text-gray-600 fw-bold fs-9 d-block mb-1 text-uppercase tracking-wider">Caption & Hashtags (FYP):</span>
-                                                    <p class="text-gray-800 fs-7 mb-0 lh-base clip-desc-text" style="white-space: pre-line;">{{ $clip->description }}</p>
+                                                    <p class="text-gray-800 fs-7 mb-0 lh-base clip-desc-text" style="white-space: pre-line;">{{ $clip->description }}@if($video->source_type === 'youtube' && !empty($video->youtube_channel))
+
+
+📌 Source: {{ $video->source_url }}
+🎥 Channel: {{ $video->youtube_channel }}@endif</p>
                                                     
                                                     <div class="mt-4 pt-3 border-top border-gray-200 d-flex justify-content-end">
                                                         <button type="button" class="btn btn-light-primary btn-sm py-2 px-3 d-inline-flex align-items-center fw-bold fs-8" onclick="copyCaption(this)">

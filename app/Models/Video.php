@@ -14,8 +14,10 @@ class Video extends Model
     protected $fillable = [
         'user_id',
         'title',
+        'original_title',
         'source_type',
         'source_url',
+        'youtube_channel',
         'file_path',
         'status',
         'error_message',
