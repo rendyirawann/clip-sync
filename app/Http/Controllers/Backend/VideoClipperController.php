@@ -41,6 +41,9 @@ class VideoClipperController extends Controller
             'model' => 'nullable|string|max:100',
             'custom_model' => 'nullable|string|max:100',
             'orientation' => 'nullable|in:16:9,9:16',
+            'is_podcast' => 'nullable|boolean',
+            'engine_mode' => 'nullable|in:standard,opsi_a,opsi_b',
+            'burn_subtitles' => 'nullable|boolean',
         ], [
             'youtube_url.required_if' => 'Kolom Link YouTube harus diisi jika tipe sumber adalah YouTube.',
             'video_file.required_if' => 'File video harus diunggah jika tipe sumber adalah Upload PC.',
@@ -61,24 +64,27 @@ class VideoClipperController extends Controller
             $duration = (int)($request->duration ?: 90);
             switch ($duration) {
                 case 30:
-                    $min = 20; $max = 40; break;
+                     $min = 20; $max = 40; break;
                 case 60:
-                    $min = 45; $max = 75; break;
+                     $min = 45; $max = 75; break;
                 case 90:
-                    $min = 70; $max = 110; break;
+                     $min = 70; $max = 110; break;
                 case 120:
-                    $min = 90; $max = 140; break;
+                     $min = 90; $max = 140; break;
                 case 180:
-                    $min = 140; $max = 220; break;
+                     $min = 140; $max = 220; break;
                 case 360:
-                    $min = 300; $max = 420; break;
+                     $min = 300; $max = 420; break;
                 default:
-                    $min = 30; $max = 90; break;
+                     $min = 30; $max = 90; break;
             }
             $video->clip_duration_min = $min;
             $video->clip_duration_max = $max;
             $video->watermark = $request->watermark;
             $video->orientation = $request->orientation ?: '16:9';
+            $video->is_podcast = $request->has('is_podcast') ? (bool)$request->is_podcast : false;
+            $video->engine_mode = $request->engine_mode ?: 'standard';
+            $video->burn_subtitles = $request->has('burn_subtitles') ? (bool)$request->burn_subtitles : false;
             
             // Set dynamic AI provider and model from request
             $video->provider = $request->provider ?: 'gemini';
@@ -157,5 +163,184 @@ class VideoClipperController extends Controller
             Log::error('Error deleting video clipper files: ' . $e->getMessage());
             return redirect()->route('clipper.index')->with('error', 'Gagal menghapus file: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Update dynamic clip metadata and dual subtitle files.
+     */
+    public function updateClip(Request $request, $id)
+    {
+        $clip = Clip::findOrFail($id);
+        $video = $clip->video;
+
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'subtitles' => 'nullable|array',
+        ]);
+
+        // Update Title & Description/Caption
+        $clip->title = $request->title;
+
+        // Auto-inject hashtags if they are missing
+        $caption = $request->description ?: '';
+        if (!str_contains($caption, '#')) {
+            $caption .= "\n\n#fyp #videoclipper #viral #highlight";
+        }
+        $clip->description = $caption;
+
+        // Update Subtitles if provided
+        if ($request->has('subtitles')) {
+            $clip->subtitles_dual = $request->subtitles;
+
+            // Re-generate .srt and .vtt files on disk based on the actual clip file_path
+            $filePath = $clip->file_path; // e.g. "clipper/9/clip_1.mp4"
+            $subPathVtt = str_replace('.mp4', '_sub.vtt', $filePath);
+            $subPathSrt = str_replace('.mp4', '_sub.srt', $filePath);
+
+            $outputFileVtt = storage_path("app/public/" . $subPathVtt);
+            $outputFileSrt = storage_path("app/public/" . $subPathSrt);
+
+            $srtLines = [];
+            $vttLines = ["WEBVTT\n"];
+            $index = 1;
+
+            foreach ($request->subtitles as $sub) {
+                $startSec = (float)($sub['start_seconds'] ?? 0);
+                $endSec = (float)($sub['end_seconds'] ?? 0);
+                $textId = $sub['text_id'] ?? '';
+                $textEn = $sub['text_en'] ?? '';
+
+                $text = $textId ?: $textEn;
+                if ($textEn && $textId && $textEn !== $textId) {
+                    $text = "{$textEn}\n{$textId}";
+                }
+
+                // SRT formatting
+                $srtLines[] = $index;
+                $srtLines[] = $this->formatSrtTimestamp($startSec) . " --> " . $this->formatSrtTimestamp($endSec);
+                $srtLines[] = $text . "\n";
+
+                // VTT formatting
+                $vttLines[] = $index;
+                $vttLines[] = $this->formatVttTimestamp($startSec) . " --> " . $this->formatVttTimestamp($endSec);
+                $vttLines[] = $text . "\n";
+
+                $index++;
+            }
+
+            file_put_contents($outputFileSrt, implode("\n", $srtLines));
+            file_put_contents($outputFileVtt, implode("\n", $vttLines));
+        }
+
+        $clip->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Klip dan subtitle berhasil diperbarui!',
+            'clip' => $clip
+        ]);
+    }
+
+    /**
+     * Format seconds to SRT subtitle timestamp format.
+     */
+    private function formatSrtTimestamp($seconds)
+    {
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $secs = floor($seconds % 60);
+        $ms = round(($seconds - floor($seconds)) * 1000);
+        return sprintf('%02d:%02d:%02d,%03d', $hours, $minutes, $secs, $ms);
+    }
+
+    /**
+     * Format seconds to WebVTT subtitle timestamp format.
+     */
+    private function formatVttTimestamp($seconds)
+    {
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $secs = floor($seconds % 60);
+        $ms = round(($seconds - floor($seconds)) * 1000);
+        return sprintf('%02d:%02d:%02d.%03d', $hours, $minutes, $secs, $ms);
+    }
+
+    /**
+     * Stream the original/source video file supporting HTTP Range requests.
+     */
+    public function streamVideoSource($id)
+    {
+        $video = Video::findOrFail($id);
+        $path = storage_path("app/public/" . $video->file_path);
+
+        return $this->streamFileWithRange($path);
+    }
+
+    /**
+     * Stream a clip video file supporting HTTP Range requests.
+     */
+    public function streamClip($id)
+    {
+        $clip = Clip::findOrFail($id);
+        $path = storage_path("app/public/" . $clip->file_path);
+
+        return $this->streamFileWithRange($path);
+    }
+
+    /**
+     * Core range-based file streaming handler (supports HTTP 206 Partial Content).
+     */
+    private function streamFileWithRange($path)
+    {
+        if (!file_exists($path)) {
+            abort(404, "File video tidak ditemukan.");
+        }
+
+        $stream = fopen($path, 'rb');
+        $size   = filesize($path);
+        $length = $size;
+        $start  = 0;
+        $end    = $size - 1;
+
+        $headers = [
+            'Content-Type' => 'video/mp4',
+            'Accept-Ranges' => 'bytes',
+        ];
+
+        if (request()->headers->has('Range')) {
+            $range = request()->header('Range');
+            if (preg_match('/bytes=\s*(\d+)-(\d*)/', $range, $matches)) {
+                $start = (int)$matches[1];
+                if (!empty($matches[2])) {
+                    $end = (int)$matches[2];
+                }
+            }
+
+            $length = $end - $start + 1;
+            fseek($stream, $start);
+            
+            $headers['Content-Range'] = "bytes $start-$end/$size";
+            
+            return response()->stream(function () use ($stream, $length) {
+                $bufferSize = 8192;
+                $bytesLeft = $length;
+                while ($bytesLeft > 0 && !connection_aborted()) {
+                    $bytesToRead = min($bufferSize, $bytesLeft);
+                    $data = fread($stream, $bytesToRead);
+                    echo $data;
+                    flush();
+                    $bytesLeft -= strlen($data);
+                }
+                fclose($stream);
+            }, 206, $headers);
+        }
+
+        $headers['Content-Length'] = $size;
+
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+            fclose($stream);
+        }, 200, $headers);
     }
 }

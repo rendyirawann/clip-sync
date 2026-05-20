@@ -207,6 +207,81 @@
                             </div>
                         </div>
 
+                        <!-- NEW: Podcast Mode Selector -->
+                        <div class="mb-8 border border-dashed border-primary border-opacity-50 rounded p-6 bg-light-primary bg-opacity-10">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <div class="symbol symbol-40px me-3">
+                                        <div class="symbol-label bg-light-primary">
+                                            <i class="ki-duotone ki-microphone fs-2 text-primary"><span class="path1"></span><span class="path2"></span></i>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="form-label fw-bold text-gray-800 d-block mb-0">Podcast Mode (Auto Switch Speaker) 🎙️</label>
+                                        <span class="text-muted fs-8">Otomatis membelah layar dan berganti fokus pada orang yang bicara.</span>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch form-check-custom form-check-solid">
+                                    <input class="form-check-input h-25px w-45px" type="checkbox" name="is_podcast" value="1" id="isPodcastSwitch"/>
+                                </div>
+                            </div>
+                            <div class="text-muted fs-9 mt-3">
+                                <i class="ki-duotone ki-information-2 fs-5 text-primary me-1"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
+                                💡 Eksperimental: Llama3/Gemini akan menebak siapa yang bicara di setiap detik, dan FFmpeg akan memotong gambar wajah orang tersebut secara cerdas!
+                            </div>
+                        </div>
+
+                        <!-- NEW: AI Engine Reframer Mode Selection -->
+                        <div class="mb-8">
+                            <label class="form-label fw-bold text-gray-800 fs-6 mb-3">Mode Pemrosesan AI & Reframer 🚀</label>
+                            <div class="row g-5">
+                                <!-- Standard Option -->
+                                <div class="col-md-4">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 active w-100 h-100" style="cursor: pointer;">
+                                        <div class="d-flex align-items-start">
+                                            <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
+                                                <input class="form-check-input" type="radio" name="engine_mode" value="standard" checked />
+                                            </div>
+                                            <div>
+                                                <div class="fw-bold text-gray-800 fs-6">Standard (Fast)</div>
+                                                <div class="text-muted fs-8 mt-1">Potong tengah (center crop) statis, sangat cepat dan ringan CPU.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Opsi A Option -->
+                                <div class="col-md-4">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100 h-100" style="cursor: pointer;">
+                                        <div class="d-flex align-items-start">
+                                            <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
+                                                <input class="form-check-input" type="radio" name="engine_mode" value="opsi_a" />
+                                            </div>
+                                            <div>
+                                                <div class="fw-bold text-gray-800 fs-6">Opsi A (YOLO + FaceMesh)</div>
+                                                <div class="text-muted fs-8 mt-1">Cinematic camera pans, Rule of Thirds, lip-sync volume & karaoke subtitle.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Opsi B Option -->
+                                <div class="col-md-4">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100 h-100" style="cursor: pointer;">
+                                        <div class="d-flex align-items-start">
+                                            <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
+                                                <input class="form-check-input" type="radio" name="engine_mode" value="opsi_b" />
+                                            </div>
+                                            <div>
+                                                <div class="fw-bold text-gray-800 fs-6">Opsi B (Smart Hybrid)</div>
+                                                <div class="text-muted fs-8 mt-1">Kualitas sama persis Opsi A + optimasi pelacakan cepat & hemat CPU 10x!</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Advanced Settings Accordion -->
                         <div class="card border border-dashed border-gray-300 mb-8 bg-light-light rounded">
                             <div class="card-header border-0 min-h-auto py-4 px-6 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#advancedSettingsCollapse">
@@ -255,6 +330,25 @@
                                             <input type="text" name="watermark" class="form-control" placeholder="Contoh: @rendyirawan" value="{{ old('watermark') }}">
                                         </div>
                                         <div class="text-muted fs-9 mt-1">Watermark akan dirender transparan di tengah-tengah video klip Anda secara elegan.</div>
+                                    </div>
+                                    <!-- Burn Subtitles Checkbox Toggle -->
+                                    <div class="col-12">
+                                        <div class="d-flex flex-stack border border-dashed border-gray-300 rounded p-4 bg-white">
+                                            <div class="d-flex align-items-start">
+                                                <div class="symbol symbol-30px me-3 mt-1">
+                                                    <div class="symbol-label bg-light-warning">
+                                                        <i class="ki-duotone ki-note-2 fs-5 text-warning"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="form-label fw-bold text-gray-800 d-block mb-0 fs-7">Bakar Subtitle ke Video (Hardcode) 🔥</label>
+                                                    <span class="text-muted fs-8">Aktifkan untuk menempelkan teks subtitle karaoke estetik langsung ke video klip. Matikan jika Anda ingin subtitle bersifat dinamis dan bisa diedit kapan saja secara instan tanpa perlu render ulang.</span>
+                                                </div>
+                                            </div>
+                                            <div class="form-check form-check-custom form-check-solid form-check-sm ms-4">
+                                                <input class="form-check-input" type="checkbox" name="burn_subtitles" value="1" checked />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -400,10 +494,10 @@
                                                         </a>
                                                     @endif
 
-                                                    <form action="{{ route('clipper.destroy', $video->id) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus project ini beserta seluruh video klip di dalamnya?')">
+                                                    <form action="{{ route('clipper.destroy', $video->id) }}" method="POST">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <button type="submit" class="btn btn-sm btn-icon btn-bg-light btn-active-color-danger" data-bs-toggle="tooltip" title="Hapus Project">
+                                                        <button type="button" onclick="confirmDeleteProject(event, this)" class="btn btn-sm btn-icon btn-bg-light btn-active-color-danger" data-bs-toggle="tooltip" title="Hapus Project">
                                                             <i class="ki-duotone ki-trash fs-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>
                                                         </button>
                                                     </form>
@@ -519,12 +613,68 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Toggle active class on engine mode radio cards selection
+    const engineRadios = document.querySelectorAll('input[name="engine_mode"]');
+    engineRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            engineRadios.forEach(r => {
+                const label = r.closest('label');
+                if (label) {
+                    label.classList.remove('active');
+                }
+            });
+            if (this.checked) {
+                const activeLabel = this.closest('label');
+                if (activeLabel) {
+                    activeLabel.classList.add('active');
+                }
+            }
+        });
+    });
+
     // Form submission indicator
     form.addEventListener('submit', function() {
         btnSubmit.setAttribute('disabled', 'true');
         btnSubmit.querySelector('.indicator-label').classList.add('d-none');
         btnSubmit.querySelector('.indicator-progress').classList.remove('d-none');
     });
+
+    // Global SweetAlert2 delete confirmation surviving AJAX updates
+    window.confirmDeleteProject = function(e, btn) {
+        e.preventDefault();
+        const form = btn.closest('form');
+        if (!form) return;
+
+        Swal.fire({
+            title: 'Hapus Project?',
+            text: "Project ini beserta seluruh file video klip dan subtitle di dalamnya akan dihapus secara permanen!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f1416c',
+            cancelButtonColor: '#dbdfeb',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal',
+            buttonsStyling: false,
+            customClass: {
+                confirmButton: 'btn btn-danger',
+                cancelButton: 'btn btn-active-light btn-light ms-2'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show standard processing loading block on delete click
+                Swal.fire({
+                    title: 'Menghapus...',
+                    text: 'Silakan tunggu sebentar.',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                form.submit();
+            }
+        });
+    };
 
     // Real-time Status Polling (AJAX DOM Parsing)
     function pollStatus() {

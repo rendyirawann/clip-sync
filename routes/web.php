@@ -145,11 +145,29 @@ Route::middleware(['auth', 'forbid-banned-user'])->group(function () {
     // ====================================================
     // VIDEO CLIPPER: Accessible by all authenticated users
     // ====================================================
+    Route::get('/admin/clipper/video/{id}/stream', [\App\Http\Controllers\Backend\VideoClipperController::class, 'streamVideoSource'])->name('clipper.stream-source');
+    Route::get('/admin/clipper/clip/{id}/stream', [\App\Http\Controllers\Backend\VideoClipperController::class, 'streamClip'])->name('clipper.stream-clip');
+    Route::post('/admin/clipper/clip/{id}/update', [\App\Http\Controllers\Backend\VideoClipperController::class, 'updateClip'])->name('clipper.clip.update');
+    
     Route::resource('/admin/clipper', \App\Http\Controllers\Backend\VideoClipperController::class)->names([
         'index' => 'clipper.index',
         'store' => 'clipper.store',
         'show' => 'clipper.show',
         'destroy' => 'clipper.destroy',
+    ]);
+
+    // ====================================================
+    // GAME VIDEO CLIPPER: Accessible by all authenticated users
+    // ====================================================
+    Route::get('/admin/game-clipper/video/{id}/stream', [\App\Http\Controllers\Backend\GameVideoClipperController::class, 'streamVideoSource'])->name('game-clipper.stream-source');
+    Route::get('/admin/game-clipper/clip/{id}/stream', [\App\Http\Controllers\Backend\GameVideoClipperController::class, 'streamClip'])->name('game-clipper.stream-clip');
+    Route::post('/admin/game-clipper/clip/{id}/update', [\App\Http\Controllers\Backend\GameVideoClipperController::class, 'updateClip'])->name('game-clipper.clip.update');
+    
+    Route::resource('/admin/game-clipper', \App\Http\Controllers\Backend\GameVideoClipperController::class)->names([
+        'index' => 'game-clipper.index',
+        'store' => 'game-clipper.store',
+        'show' => 'game-clipper.show',
+        'destroy' => 'game-clipper.destroy',
     ]);
 });
 

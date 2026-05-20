@@ -112,6 +112,19 @@ class ProcessVideoJob implements ShouldQueue
                 $command[] = $video->watermark;
             }
 
+            if ($video->is_podcast) {
+                $command[] = '--is-podcast';
+            }
+
+            if ($video->engine_mode) {
+                $command[] = '--engine-mode';
+                $command[] = $video->engine_mode;
+            }
+
+            if (!$video->burn_subtitles) {
+                $command[] = '--disable-burn-subtitles';
+            }
+
             if ($aiProvider === 'gemini') {
                 $command[] = '--api-key';
                 $command[] = $geminiKey;

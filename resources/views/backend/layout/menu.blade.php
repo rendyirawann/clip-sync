@@ -49,6 +49,22 @@
 								</div>
 								<!--end:Menu item-->
 
+								<!--begin:Menu item-->
+								<div class="menu-item">
+									<!--begin:Menu link-->
+									<a class="menu-link {{ request()->routeIs('game-clipper.*') ? 'active' : '' }}" href="{{ route('game-clipper.index') }}">
+										<span class="menu-icon">
+											<i class="ki-duotone ki-gamepad fs-2">
+												<span class="path1"></span>
+												<span class="path2"></span>
+											</i>
+										</span>
+										<span class="menu-title">Game & Anime Clipper</span>
+									</a>
+									<!--end:Menu link-->
+								</div>
+								<!--end:Menu item-->
+
 
 								<!--begin:Menu item-->
 								<div class="menu-item pt-5">

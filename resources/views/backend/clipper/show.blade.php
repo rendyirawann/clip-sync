@@ -43,7 +43,7 @@
                     <div class="mb-6 rounded overflow-hidden shadow-sm bg-dark position-relative" style="aspect-ratio: 16/9;">
                         @if($video->file_path)
                             <video controls class="w-100 h-100" style="object-fit: contain;">
-                                <source src="/storage/{{ $video->file_path }}" type="video/mp4">
+                                <source src="{{ route('clipper.stream-source', $video->id) }}" type="video/mp4">
                                 Browser Anda tidak mendukung HTML5 video.
                             </video>
                         @else
@@ -146,9 +146,16 @@
                                             </div>
 
                                             <video id="player_{{ $clip->id }}" data-start-seconds="{{ $clip->start_seconds }}" controls class="w-100 h-100" style="object-fit: contain;" crossorigin="anonymous">
-                                                <source src="/storage/{{ $clip->file_path }}" type="video/mp4">
+                                                <source src="{{ route('clipper.stream-clip', $clip->id) }}" type="video/mp4">
                                                 <!-- Dual Subtitles Track -->
-                                                <track src="/storage/clipper/{{ $video->id }}/clip_{{ $loop->iteration }}_sub.vtt" kind="subtitles" srclang="id" label="Indo-En Dual Sub" default>
+                                                @php
+                                                    $subVttPath = str_replace('.mp4', '_sub.vtt', $clip->file_path);
+                                                @endphp
+                                                @if(!($video->burn_subtitles ?? true))
+                                                    <track src="/storage/{{ $subVttPath }}" kind="subtitles" srclang="id" label="Indo-En Dual Sub" default>
+                                                @else
+                                                    <track src="/storage/{{ $subVttPath }}" kind="subtitles" srclang="id" label="Indo-En Dual Sub">
+                                                @endif
                                                 Browser Anda tidak mendukung HTML5 video.
                                             </video>
                                         </div>
@@ -177,6 +184,14 @@
 🎥 Channel: {{ $video->youtube_channel }}@endif</p>
                                                     
                                                     <div class="mt-4 pt-3 border-top border-gray-200 d-flex justify-content-end">
+                                                        <button type="button" class="btn btn-light-warning btn-sm py-2 px-3 d-inline-flex align-items-center fw-bold fs-8 me-2 edit-clip-btn"
+                                                                data-clip-id="{{ $clip->id }}"
+                                                                data-clip-title="{{ $clip->title }}"
+                                                                data-clip-desc="{{ $clip->description }}"
+                                                                data-clip-subs="{{ json_encode($clip->subtitles_dual) }}">
+                                                            <i class="ki-duotone ki-notepad-edit fs-6 me-1.5"><span class="path1"></span><span class="path2"></span></i>
+                                                            Edit Klip & Subtitle
+                                                        </button>
                                                         <button type="button" class="btn btn-light-primary btn-sm py-2 px-3 d-inline-flex align-items-center fw-bold fs-8" onclick="copyCaption(this)">
                                                             <i class="ki-duotone ki-copy fs-6 me-1.5"><span class="path1"></span><span class="path2"></span></i>
                                                             Salin Judul & Caption
@@ -225,6 +240,63 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Klip & Subtitle -->
+<div class="modal fade" id="modal_edit_clip" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-light py-5">
+                <h3 class="modal-title fw-bold text-gray-900 fs-3 d-flex align-items-center">
+                    <i class="ki-duotone ki-notepad-edit text-warning fs-1 me-2"><span class="path1"></span><span class="path2"></span></i>
+                    Edit Judul, Caption & Subtitle Klip 📝
+                </h3>
+                <div class="btn btn-icon btn-sm btn-active-light-primary ms-2" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="ki-duotone ki-cross fs-1"><span class="path1"></span><span class="path2"></span></i>
+                </div>
+            </div>
+            
+            <form id="form_edit_clip" onsubmit="submitEditClipForm(event)">
+                @csrf
+                <input type="hidden" id="edit_clip_id">
+                
+                <div class="modal-body py-8 px-lg-10 overflow-auto" style="max-height: 60vh;">
+                    <!-- Title Input -->
+                    <div class="fv-row mb-6">
+                        <label class="required fs-6 fw-bold mb-2">Judul Klip (Viral Title)</label>
+                        <input type="text" class="form-control form-control-solid rounded" id="edit_clip_title" required placeholder="Masukkan judul klip yang menarik...">
+                    </div>
+                    
+                    <!-- Description / Caption Input -->
+                    <div class="fv-row mb-6">
+                        <label class="fs-6 fw-bold mb-2">Caption & Hashtags (TikTok / IG FYP Ready)</label>
+                        <textarea class="form-control form-control-solid rounded" id="edit_clip_desc" rows="4" placeholder="Tulis caption Anda... #fyp dan tagar akan ditambahkan otomatis jika kosong!"></textarea>
+                        <span class="form-text text-muted fs-8">💡 Tips: Tagar (#) akan disisipkan di akhir secara otomatis untuk memaksimalkan performa algoritma FYP jika Anda mengosongkannya.</span>
+                    </div>
+                    
+                    <div class="separator separator-dashed my-6"></div>
+                    
+                    <!-- Subtitles Scroll List -->
+                    <div class="mb-4">
+                        <label class="fs-6 fw-bold mb-2 d-block">📜 Teks Transkrip & Subtitle Video (Bisa Diedit Langsung!):</label>
+                        <span class="text-muted fs-8 d-block mb-4">Mengedit teks di bawah ini akan memperbarui file subtitle `.srt` & `.vtt` pemutar video secara instan!</span>
+                        
+                        <div id="subtitles_edit_list" class="border border-dashed rounded p-4 bg-light bg-opacity-50 overflow-auto" style="max-height: 250px;">
+                            <!-- Dinamis baris-baris subtitle diisi dari JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer border-0 bg-light py-5 d-flex justify-content-end gap-3">
+                    <button type="button" class="btn btn-light rounded" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success rounded d-flex align-items-center fw-bold" id="btn_save_clip_changes">
+                        <i class="ki-duotone ki-disk fs-4 me-2"><span class="path1"></span><span class="path2"></span></i>
+                        Simpan Perubahan & Update Video
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -391,6 +463,139 @@ document.addEventListener('DOMContentLoaded', function() {
             if (absoluteSpan) {
                 absoluteSpan.innerText = absoluteText;
             }
+        });
+    });
+});
+
+// Initialize bootstrap modal
+let editClipModal = null;
+
+function openEditClipModal(clipId, title, desc, subs) {
+    if (!editClipModal) {
+        editClipModal = new bootstrap.Modal(document.getElementById('modal_edit_clip'));
+    }
+    
+    document.getElementById('edit_clip_id').value = clipId;
+    document.getElementById('edit_clip_title').value = title;
+    document.getElementById('edit_clip_desc').value = desc;
+    
+    const subsContainer = document.getElementById('subtitles_edit_list');
+    subsContainer.innerHTML = '';
+    
+    if (subs && subs.length > 0) {
+        subs.forEach((sub, idx) => {
+            const minStr = Math.floor(sub.start_seconds / 60).toString().padStart(2, '0');
+            const secStr = Math.floor(sub.start_seconds % 60).toString().padStart(2, '0');
+            const timestamp = `[${minStr}:${secStr}]`;
+            
+            const textVal = sub.text_id || sub.text_en || '';
+            
+            const subRow = document.createElement('div');
+            subRow.className = 'd-flex align-items-center gap-3 mb-3 pb-3 border-bottom border-gray-200';
+            subRow.innerHTML = `
+                <span class="text-primary fw-bold fs-8 min-w-70px">${timestamp}</span>
+                <input type="hidden" name="sub_start[]" value="${sub.start_seconds}">
+                <input type="hidden" name="sub_end[]" value="${sub.end_seconds}">
+                <input type="hidden" name="sub_en[]" value="${sub.text_en || ''}">
+                <input type="text" name="sub_id[]" class="form-control form-control-sm form-control-solid rounded" value="${textVal.replace(/"/g, '&quot;')}" required>
+            `;
+            subsContainer.appendChild(subRow);
+        });
+    } else {
+        subsContainer.innerHTML = '<span class="text-muted fs-8">Tidak ada data subtitle terstruktur untuk klip ini.</span>';
+    }
+    
+    editClipModal.show();
+}
+
+function submitEditClipForm(event) {
+    event.preventDefault();
+    
+    const clipId = document.getElementById('edit_clip_id').value;
+    const title = document.getElementById('edit_clip_title').value;
+    const desc = document.getElementById('edit_clip_desc').value;
+    
+    const btn = document.getElementById('btn_save_clip_changes');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menyimpan...';
+    btn.disabled = true;
+    
+    // Parse subtitles from list inputs
+    const subRows = document.getElementById('subtitles_edit_list').children;
+    const subtitles = [];
+    
+    for (let row of subRows) {
+        const startInput = row.querySelector('input[name="sub_start[]"]');
+        const endInput = row.querySelector('input[name="sub_end[]"]');
+        const enInput = row.querySelector('input[name="sub_en[]"]');
+        const idInput = row.querySelector('input[name="sub_id[]"]');
+        
+        if (startInput && endInput && idInput) {
+            subtitles.push({
+                start_seconds: parseFloat(startInput.value),
+                end_seconds: parseFloat(endInput.value),
+                text_en: idInput.value, // Set to edited value to prevent dual-sub split
+                text_id: idInput.value
+            });
+        }
+    }
+    
+    // Send AJAX request
+    fetch(`/admin/clipper/clip/${clipId}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+        },
+        body: JSON.stringify({
+            title: title,
+            description: desc,
+            subtitles: subtitles
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        
+        if (data.success) {
+            if (editClipModal) editClipModal.hide();
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Sukses!',
+                    text: 'Klip, Deskripsi, dan Subtitle Video berhasil diperbarui secara langsung!',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.reload();
+                });
+            } else {
+                alert('Klip berhasil diperbarui!');
+                window.location.reload();
+            }
+        } else {
+            alert('Gagal memperbarui klip: ' + (data.message || 'Error tidak diketahui'));
+        }
+    })
+    .catch(error => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Terjadi kesalahan koneksi: ' + error.message);
+    });
+}
+
+// Attach listener to edit buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.edit-clip-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const clipId = this.getAttribute('data-clip-id');
+            const title = this.getAttribute('data-clip-title');
+            const desc = this.getAttribute('data-clip-desc');
+            const subs = JSON.parse(this.getAttribute('data-clip-subs'));
+            
+            openEditClipModal(clipId, title, desc, subs);
         });
     });
 });
