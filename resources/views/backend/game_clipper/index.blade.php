@@ -72,26 +72,34 @@
                             <label class="form-label fw-bold text-gray-800 d-block mb-3">Pilih Sumber Video</label>
                             <div class="row g-4" data-kt-buttons="true" data-kt-buttons-target="[data-kt-button]">
                                 <!-- YouTube Tab -->
-                                <div class="col-6">
-                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-danger d-flex align-items-center justify-content-center p-4 active" data-kt-button="true">
-                                        <input class="btn-check" type="radio" name="source_type" value="youtube" checked="checked" id="sourceTypeYoutube">
+                                <div class="col-md-4 col-12">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-danger d-flex align-items-center justify-content-center p-4 {{ old('source_type', 'youtube') === 'youtube' ? 'active' : '' }}" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="source_type" value="youtube" {{ old('source_type', 'youtube') === 'youtube' ? 'checked="checked"' : '' }} id="sourceTypeYoutube">
                                         <i class="ki-duotone ki-youtube fs-1 text-danger me-2"><span class="path1"></span><span class="path2"></span></i>
                                         <span class="fw-bold">Link YouTube</span>
                                     </label>
                                 </div>
                                 <!-- Upload Tab -->
-                                <div class="col-6">
-                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-primary d-flex align-items-center justify-content-center p-4" data-kt-button="true">
-                                        <input class="btn-check" type="radio" name="source_type" value="upload" id="sourceTypeUpload">
+                                <div class="col-md-4 col-12">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-primary d-flex align-items-center justify-content-center p-4 {{ old('source_type') === 'upload' ? 'active' : '' }}" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="source_type" value="upload" {{ old('source_type') === 'upload' ? 'checked="checked"' : '' }} id="sourceTypeUpload">
                                         <i class="ki-duotone ki-file-up fs-1 text-primary me-2"><span class="path1"></span><span class="path2"></span></i>
-                                        <span class="fw-bold">Upload dari PC</span>
+                                        <span class="fw-bold">Upload PC</span>
+                                    </label>
+                                </div>
+                                <!-- Local Path Tab -->
+                                <div class="col-md-4 col-12">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-warning d-flex align-items-center justify-content-center p-4 {{ old('source_type') === 'local_path' ? 'active' : '' }}" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="source_type" value="local_path" {{ old('source_type') === 'local_path' ? 'checked="checked"' : '' }} id="sourceTypeLocalPath">
+                                        <i class="ki-duotone ki-folder fs-1 text-warning me-2"><span class="path1"></span><span class="path2"></span></i>
+                                        <span class="fw-bold">Path Lokal</span>
                                     </label>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Input Container (YouTube Input) -->
-                        <div id="youtubeInputSection" class="mb-8">
+                        <div id="youtubeInputSection" class="mb-8 {{ old('source_type', 'youtube') === 'youtube' ? '' : 'd-none' }}">
                             <div class="mb-4">
                                 <label class="form-label fw-bold text-gray-800">URL / Link YouTube Gameplay / Anime</label>
                                 <div class="input-group input-group-solid">
@@ -111,7 +119,7 @@
                         </div>
 
                         <!-- Input Container (Upload File PC) -->
-                        <div id="uploadInputSection" class="mb-8 d-none">
+                        <div id="uploadInputSection" class="mb-8 {{ old('source_type') === 'upload' ? '' : 'd-none' }}">
                             <div class="mb-4">
                                 <label class="form-label fw-bold text-gray-800">File Video Game / Anime (PC)</label>
                                 
@@ -124,6 +132,59 @@
                                 @error('video_file')
                                     <span class="text-danger fs-7 mt-1 d-block">{{ $message }}</span>
                                 @enderror
+                            </div>
+                        </div>
+
+                        <!-- Input Container (Local Absolute Path) -->
+                        <div id="localPathInputSection" class="mb-8 {{ old('source_type') === 'local_path' ? '' : 'd-none' }}">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-gray-800">Path File Video Game / Anime Lokal (Absolute Path)</label>
+                                <div class="input-group input-group-solid">
+                                    <span class="input-group-text"><i class="ki-duotone ki-folder fs-3 text-warning"><span class="path1"></span><span class="path2"></span></i></span>
+                                    <input type="text" name="local_path" class="form-control" placeholder="Contoh: D:\Videos\my_large_video.mp4" value="{{ old('local_path') }}">
+                                </div>
+                                @error('local_path')
+                                    <span class="text-danger fs-7 mt-1 d-block">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="bg-light-warning rounded p-4 border border-dashed border-warning">
+                                <div class="d-flex align-items-center">
+                                    <i class="ki-duotone ki-information-2 fs-1 text-warning me-3"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
+                                    <span class="fs-7 text-gray-800">Bebas upload file raksasa (5GB+)! Cukup copy-paste absolute path video dari disk lokal (localhost). Format didukung: MP4, MOV, AVI, MKV.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ==================== NEW: Content Type Selection (Gameplay vs Anime) ==================== -->
+                        <div class="mb-8 border border-dashed border-gray-300 rounded p-6 bg-white">
+                            <label class="form-label fw-bold text-gray-800 d-block mb-3 fs-5">
+                                <i class="ki-duotone ki-element-11 fs-3 me-2 text-primary"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                                Tipe Konten Video 🎨✨
+                            </label>
+                            <p class="text-muted fs-8 mb-4">Pilih jenis konten video Anda agar kecerdasan AI dan gaya editing disesuaikan secara otomatis.</p>
+                            <div class="row g-4" data-kt-buttons="true" data-kt-buttons-target="[data-kt-button]">
+                                <!-- Gameplay Highlights Card -->
+                                <div class="col-6">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-primary d-flex flex-column align-items-center justify-content-center p-5 active" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="content_type" value="gameplay" checked="checked">
+                                        <div class="border border-2 border-primary rounded mb-3 bg-light-primary d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; transition: all 0.3s ease;">
+                                            <i class="ki-duotone ki-controller fs-1 text-primary"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
+                                        </div>
+                                        <span class="fw-bold fs-7">Gameplay 🎮💥</span>
+                                        <span class="text-muted fs-9 mt-1">Highlights, Clutch & Hype</span>
+                                    </label>
+                                </div>
+                                <!-- Anime Scene Card -->
+                                <div class="col-6">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-danger d-flex flex-column align-items-center justify-content-center p-5" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="content_type" value="anime">
+                                        <div class="border border-2 border-danger rounded mb-3 bg-light-danger d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; transition: all 0.3s ease;">
+                                            <i class="ki-duotone ki-ghost fs-1 text-danger"><span class="path1"></span><span class="path2"></span></i>
+                                        </div>
+                                        <span class="fw-bold fs-7">Anime Scene 🌸⚔️</span>
+                                        <span class="text-muted fs-9 mt-1">Dialogue & Fight/Sad Scene</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -213,8 +274,8 @@
                                 <div class="mb-4">
                                     <label class="form-label fw-bold text-warning">Model Ollama yang Digunakan</label>
                                     <select name="model" id="ollamaModelSelect" class="form-select form-select-solid">
-                                        <option value="llama3" selected>llama3 (Default)</option>
-                                        <option value="qwen">qwen</option>
+                                        <option value="llama3.1" selected>llama3.1 (Default)</option>
+                                        <option value="qwen2.5">qwen2.5</option>
                                         <option value="mistral">mistral</option>
                                         <option value="custom">Tulis Model Sendiri (Custom)...</option>
                                     </select>
@@ -258,10 +319,10 @@
                         <!-- Reframer Mode Selection -->
                         <div class="mb-8 border border-dashed border-gray-300 rounded p-6 bg-white">
                             <label class="form-label fw-bold text-gray-800 fs-6 mb-3">Mode Pemrosesan AI & Reframer 🚀</label>
-                            <div class="row g-5">
+                            <div class="row g-4">
                                 <!-- Standard Option -->
-                                <div class="col-md-4">
-                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 active w-100 h-100" style="cursor: pointer;">
+                                <div class="col-12">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 active w-100" style="cursor: pointer;">
                                         <div class="d-flex align-items-start">
                                             <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
                                                 <input class="form-check-input" type="radio" name="engine_mode" value="standard" checked />
@@ -275,8 +336,8 @@
                                 </div>
 
                                 <!-- Opsi A Option -->
-                                <div class="col-md-4">
-                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100 h-100" style="cursor: pointer;">
+                                <div class="col-12">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100" style="cursor: pointer;">
                                         <div class="d-flex align-items-start">
                                             <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
                                                 <input class="form-check-input" type="radio" name="engine_mode" value="opsi_a" />
@@ -290,8 +351,8 @@
                                 </div>
 
                                 <!-- Opsi B Option -->
-                                <div class="col-md-4">
-                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100 h-100" style="cursor: pointer;">
+                                <div class="col-12">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100" style="cursor: pointer;">
                                         <div class="d-flex align-items-start">
                                             <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
                                                 <input class="form-check-input" type="radio" name="engine_mode" value="opsi_b" />
@@ -436,6 +497,20 @@
                                                             </span>
                                                         @endif
 
+                                                        @if($video->source_type === 'youtube')
+                                                            <span class="badge badge-light-danger border border-danger border-dashed px-2 py-0.5 fs-9 text-danger">
+                                                                YouTube
+                                                            </span>
+                                                        @elseif($video->source_type === 'local_path')
+                                                            <span class="badge badge-light-warning border border-warning border-dashed px-2 py-0.5 fs-9 text-warning" data-bs-toggle="tooltip" title="{{ $video->file_path }}">
+                                                                Path Lokal
+                                                            </span>
+                                                        @else
+                                                            <span class="badge badge-light-primary border border-primary border-dashed px-2 py-0.5 fs-9 text-primary">
+                                                                Upload PC
+                                                            </span>
+                                                        @endif
+
                                                         @if(($video->orientation ?? '16:9') === '9:16')
                                                             <span class="badge badge-light-primary border border-primary border-dashed px-2 py-0.5 fs-9 text-primary">
                                                                 9:16
@@ -572,27 +647,40 @@
 document.addEventListener('DOMContentLoaded', function() {
     const radioYoutube = document.getElementById('sourceTypeYoutube');
     const radioUpload = document.getElementById('sourceTypeUpload');
+    const radioLocalPath = document.getElementById('sourceTypeLocalPath');
     const youtubeSection = document.getElementById('youtubeInputSection');
     const uploadSection = document.getElementById('uploadInputSection');
+    const localPathSection = document.getElementById('localPathInputSection');
     const videoFileInput = document.getElementById('videoFileInput');
     const uploadFileText = document.getElementById('uploadFileText');
     const form = document.getElementById('clipperForm');
     const btnSubmit = document.getElementById('btnSubmit');
 
-    // Toggle Inputs between Youtube & Local Upload
-    radioYoutube.addEventListener('change', function() {
-        if(this.checked) {
+    // Toggle Inputs between Youtube, Local Upload, & Local Path
+    function toggleSourceSections() {
+        if (radioYoutube.checked) {
             youtubeSection.classList.remove('d-none');
             uploadSection.classList.add('d-none');
-        }
-    });
-
-    radioUpload.addEventListener('change', function() {
-        if(this.checked) {
+            if (localPathSection) localPathSection.classList.add('d-none');
+        } else if (radioUpload.checked) {
             uploadSection.classList.remove('d-none');
             youtubeSection.classList.add('d-none');
+            if (localPathSection) localPathSection.classList.add('d-none');
+        } else if (radioLocalPath && radioLocalPath.checked) {
+            if (localPathSection) localPathSection.classList.remove('d-none');
+            youtubeSection.classList.add('d-none');
+            uploadSection.classList.add('d-none');
         }
-    });
+    }
+
+    radioYoutube.addEventListener('change', toggleSourceSections);
+    radioUpload.addEventListener('change', toggleSourceSections);
+    if (radioLocalPath) {
+        radioLocalPath.addEventListener('change', toggleSourceSections);
+    }
+
+    // Run once on load to ensure correct visibility based on old() validation state
+    toggleSourceSections();
 
     // Toggle BGM selections
     const bgmTypeNone = document.getElementById('bgmTypeNone');
@@ -677,6 +765,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+    });
+
+    // Toggle active class on engine mode radio cards selection
+    const engineRadios = document.querySelectorAll('input[name="engine_mode"]');
+    engineRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            engineRadios.forEach(r => {
+                const label = r.closest('label');
+                if (label) {
+                    label.classList.remove('active');
+                }
+            });
+            if (this.checked) {
+                const activeLabel = this.closest('label');
+                if (activeLabel) {
+                    activeLabel.classList.add('active');
+                }
+            }
+        });
     });
 
     // Form submit loading visual response

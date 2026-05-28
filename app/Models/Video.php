@@ -26,8 +26,10 @@ class Video extends Model
         'provider',
         'model',
         'orientation',
+        'language',
         'status',
         'error_message',
+        'content_type',
     ];
 
     /**

@@ -72,26 +72,34 @@
                             <label class="form-label fw-bold text-gray-800 d-block mb-3">Pilih Sumber Video</label>
                             <div class="row g-4" data-kt-buttons="true" data-kt-buttons-target="[data-kt-button]">
                                 <!-- YouTube Tab -->
-                                <div class="col-6">
-                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-danger d-flex align-items-center justify-content-center p-4 active" data-kt-button="true">
-                                        <input class="btn-check" type="radio" name="source_type" value="youtube" checked="checked" id="sourceTypeYoutube">
+                                <div class="col-md-4 col-12">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-danger d-flex align-items-center justify-content-center p-4 {{ old('source_type', 'youtube') === 'youtube' ? 'active' : '' }}" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="source_type" value="youtube" {{ old('source_type', 'youtube') === 'youtube' ? 'checked="checked"' : '' }} id="sourceTypeYoutube">
                                         <i class="ki-duotone ki-youtube fs-1 text-danger me-2"><span class="path1"></span><span class="path2"></span></i>
                                         <span class="fw-bold">Link YouTube</span>
                                     </label>
                                 </div>
                                 <!-- Upload Tab -->
-                                <div class="col-6">
-                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-primary d-flex align-items-center justify-content-center p-4" data-kt-button="true">
-                                        <input class="btn-check" type="radio" name="source_type" value="upload" id="sourceTypeUpload">
+                                <div class="col-md-4 col-12">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-primary d-flex align-items-center justify-content-center p-4 {{ old('source_type') === 'upload' ? 'active' : '' }}" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="source_type" value="upload" {{ old('source_type') === 'upload' ? 'checked="checked"' : '' }} id="sourceTypeUpload">
                                         <i class="ki-duotone ki-file-up fs-1 text-primary me-2"><span class="path1"></span><span class="path2"></span></i>
-                                        <span class="fw-bold">Upload dari PC</span>
+                                        <span class="fw-bold">Upload PC</span>
+                                    </label>
+                                </div>
+                                <!-- Local Path Tab -->
+                                <div class="col-md-4 col-12">
+                                    <label class="btn btn-outline btn-outline-dashed btn-active-light-warning d-flex align-items-center justify-content-center p-4 {{ old('source_type') === 'local_path' ? 'active' : '' }}" data-kt-button="true">
+                                        <input class="btn-check" type="radio" name="source_type" value="local_path" {{ old('source_type') === 'local_path' ? 'checked="checked"' : '' }} id="sourceTypeLocalPath">
+                                        <i class="ki-duotone ki-folder fs-1 text-warning me-2"><span class="path1"></span><span class="path2"></span></i>
+                                        <span class="fw-bold">Path Lokal</span>
                                     </label>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Input Container (YouTube Input) -->
-                        <div id="youtubeInputSection" class="mb-8">
+                        <div id="youtubeInputSection" class="mb-8 {{ old('source_type', 'youtube') === 'youtube' ? '' : 'd-none' }}">
                             <div class="mb-4">
                                 <label class="form-label fw-bold text-gray-800">URL / Link YouTube</label>
                                 <div class="input-group input-group-solid">
@@ -111,7 +119,7 @@
                         </div>
 
                         <!-- Input Container (Upload File PC) -->
-                        <div id="uploadInputSection" class="mb-8 d-none">
+                        <div id="uploadInputSection" class="mb-8 {{ old('source_type') === 'upload' ? '' : 'd-none' }}">
                             <div class="mb-4">
                                 <label class="form-label fw-bold text-gray-800">File Video (PC)</label>
                                 
@@ -124,6 +132,26 @@
                                 @error('video_file')
                                     <span class="text-danger fs-7 mt-1 d-block">{{ $message }}</span>
                                 @enderror
+                            </div>
+                        </div>
+
+                        <!-- Input Container (Local Absolute Path) -->
+                        <div id="localPathInputSection" class="mb-8 {{ old('source_type') === 'local_path' ? '' : 'd-none' }}">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-gray-800">Path File Video Lokal (Absolute Path)</label>
+                                <div class="input-group input-group-solid">
+                                    <span class="input-group-text"><i class="ki-duotone ki-folder fs-3 text-warning"><span class="path1"></span><span class="path2"></span></i></span>
+                                    <input type="text" name="local_path" class="form-control" placeholder="Contoh: D:\Videos\my_large_video.mp4" value="{{ old('local_path') }}">
+                                </div>
+                                @error('local_path')
+                                    <span class="text-danger fs-7 mt-1 d-block">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="bg-light-warning rounded p-4 border border-dashed border-warning">
+                                <div class="d-flex align-items-center">
+                                    <i class="ki-duotone ki-information-2 fs-1 text-warning me-3"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
+                                    <span class="fs-7 text-gray-800">Bebas upload file raksasa (5GB+)! Cukup copy-paste absolute path video dari disk lokal (localhost). Format didukung: MP4, MOV, AVI, MKV.</span>
+                                </div>
                             </div>
                         </div>
 
@@ -154,8 +182,8 @@
                                 <div class="mb-4">
                                     <label class="form-label fw-bold text-warning">Model Ollama yang Digunakan</label>
                                     <select name="model" id="ollamaModelSelect" class="form-select form-select-solid">
-                                        <option value="llama3" selected>llama3 (Default)</option>
-                                        <option value="qwen">qwen</option>
+                                        <option value="llama3.1" selected>llama3.1 (Default)</option>
+                                        <option value="qwen2.5">qwen2.5</option>
                                         <option value="mistral">mistral</option>
                                         <option value="custom">Tulis Model Sendiri (Custom)...</option>
                                     </select>
@@ -234,10 +262,10 @@
                         <!-- NEW: AI Engine Reframer Mode Selection -->
                         <div class="mb-8">
                             <label class="form-label fw-bold text-gray-800 fs-6 mb-3">Mode Pemrosesan AI & Reframer 🚀</label>
-                            <div class="row g-5">
+                            <div class="row g-4">
                                 <!-- Standard Option -->
-                                <div class="col-md-4">
-                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 active w-100 h-100" style="cursor: pointer;">
+                                <div class="col-12">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 active w-100" style="cursor: pointer;">
                                         <div class="d-flex align-items-start">
                                             <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
                                                 <input class="form-check-input" type="radio" name="engine_mode" value="standard" checked />
@@ -251,8 +279,8 @@
                                 </div>
 
                                 <!-- Opsi A Option -->
-                                <div class="col-md-4">
-                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100 h-100" style="cursor: pointer;">
+                                <div class="col-12">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100" style="cursor: pointer;">
                                         <div class="d-flex align-items-start">
                                             <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
                                                 <input class="form-check-input" type="radio" name="engine_mode" value="opsi_a" />
@@ -266,8 +294,8 @@
                                 </div>
 
                                 <!-- Opsi B Option -->
-                                <div class="col-md-4">
-                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100 h-100" style="cursor: pointer;">
+                                <div class="col-12">
+                                    <label class="d-flex flex-stack text-start btn btn-outline btn-outline-dashed btn-active-light-primary p-5 w-100" style="cursor: pointer;">
                                         <div class="d-flex align-items-start">
                                             <div class="form-check form-check-custom form-check-solid form-check-sm me-4 mt-1">
                                                 <input class="form-check-input" type="radio" name="engine_mode" value="opsi_b" />
@@ -330,6 +358,16 @@
                                             <input type="text" name="watermark" class="form-control" placeholder="Contoh: @rendyirawan" value="{{ old('watermark') }}">
                                         </div>
                                         <div class="text-muted fs-9 mt-1">Watermark akan dirender transparan di tengah-tengah video klip Anda secara elegan.</div>
+                                    </div>
+                                    <!-- Language Selector -->
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold text-gray-700">Pilihan Bahasa Subtitle & Title 🌐</label>
+                                        <select name="language" class="form-select form-select-solid">
+                                            <option value="id" selected>Bahasa Indonesia Only (Terjemahan otomatis jika video Inggris)</option>
+                                            <option value="en">Bahasa Inggris Only (Tetap gunakan bahasa Inggris asli/terjemahan Inggris)</option>
+                                            <option value="dual">Dual Subtitle (Bahasa Inggris + Bahasa Indonesia bertumpuk)</option>
+                                        </select>
+                                        <div class="text-muted fs-8 mt-1">Sistem akan menyelaraskan title, caption, dan subtitle pada video sesuai pilihan bahasa Anda.</div>
                                     </div>
                                     <!-- Burn Subtitles Checkbox Toggle -->
                                     <div class="col-12">
@@ -439,6 +477,10 @@
                                                 @if($video->source_type === 'youtube')
                                                     <span class="badge badge-light-danger d-inline-flex align-items-center py-2 px-3 fs-8">
                                                         <i class="fab fa-youtube text-danger me-2 fs-6"></i> YouTube
+                                                    </span>
+                                                @elseif($video->source_type === 'local_path')
+                                                    <span class="badge badge-light-warning d-inline-flex align-items-center py-2 px-3 fs-8" data-bs-toggle="tooltip" title="{{ $video->file_path }}">
+                                                        <i class="ki-duotone ki-folder fs-6 text-warning me-2"><span class="path1"></span><span class="path2"></span></i> Path Lokal
                                                     </span>
                                                 @else
                                                     <span class="badge badge-light-primary d-inline-flex align-items-center py-2 px-3 fs-8">
@@ -560,20 +602,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('clipperForm');
     const btnSubmit = document.getElementById('btnSubmit');
 
-    // Toggle Inputs between Youtube & Local Upload
-    radioYoutube.addEventListener('change', function() {
-        if(this.checked) {
+    const radioLocalPath = document.getElementById('sourceTypeLocalPath');
+    const localPathSection = document.getElementById('localPathInputSection');
+
+    // Toggle Inputs between Youtube, Local Upload, & Local Path
+    function toggleSourceSections() {
+        if (radioYoutube.checked) {
             youtubeSection.classList.remove('d-none');
             uploadSection.classList.add('d-none');
-        }
-    });
-
-    radioUpload.addEventListener('change', function() {
-        if(this.checked) {
+            if (localPathSection) localPathSection.classList.add('d-none');
+        } else if (radioUpload.checked) {
             uploadSection.classList.remove('d-none');
             youtubeSection.classList.add('d-none');
+            if (localPathSection) localPathSection.classList.add('d-none');
+        } else if (radioLocalPath && radioLocalPath.checked) {
+            if (localPathSection) localPathSection.classList.remove('d-none');
+            youtubeSection.classList.add('d-none');
+            uploadSection.classList.add('d-none');
         }
-    });
+    }
+
+    radioYoutube.addEventListener('change', toggleSourceSections);
+    radioUpload.addEventListener('change', toggleSourceSections);
+    if (radioLocalPath) {
+        radioLocalPath.addEventListener('change', toggleSourceSections);
+    }
+
+    // Run once on load to ensure correct visibility based on old() validation state
+    toggleSourceSections();
 
     // Toggle AI Engine Options (Gemini vs Ollama Local)
     const radioGemini = document.getElementById('engineGemini');
@@ -678,6 +734,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Real-time Status Polling (AJAX DOM Parsing)
     function pollStatus() {
+        // Find and dispose existing tooltips to prevent orphan elements stuck on screen
+        if (typeof bootstrap !== 'undefined') {
+            const existingTooltipTriggers = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            existingTooltipTriggers.forEach(el => {
+                const tooltipInstance = bootstrap.Tooltip.getInstance(el);
+                if (tooltipInstance) {
+                    tooltipInstance.dispose();
+                }
+            });
+            // Force remove any leftover .tooltip DOM elements from body
+            const orphanTooltips = document.querySelectorAll('.tooltip');
+            orphanTooltips.forEach(t => t.remove());
+        }
+
         fetch(window.location.href)
             .then(response => response.text())
             .then(html => {

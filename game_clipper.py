@@ -6,6 +6,59 @@ import subprocess
 import re
 import time
 
+def clean_and_parse_json(raw_str):
+    """Clean and parse a JSON string from LLM robustly, supporting single-quoted formats, markdown blocks, etc."""
+    raw_str = raw_str.strip()
+    
+    # 1. Clean markdown json codeblock wrapping
+    raw_str = re.sub(r'^```(?:json)?\s*', '', raw_str, flags=re.IGNORECASE)
+    raw_str = re.sub(r'\s*```$', '', raw_str)
+    raw_str = raw_str.strip()
+    
+    # 2. Try standard json loads
+    try:
+        return json.loads(raw_str)
+    except json.JSONDecodeError:
+        pass
+        
+    # 3. Fallback to ast.literal_eval if it contains single quotes or trailing commas
+    # We substitute JSON null/true/false with Python None/True/False
+    try:
+        import ast
+        py_str = re.sub(r'\btrue\b', 'True', raw_str)
+        py_str = re.sub(r'\bfalse\b', 'False', py_str)
+        py_str = re.sub(r'\bnull\b', 'None', py_str)
+        
+        parsed = ast.literal_eval(py_str)
+        if isinstance(parsed, (dict, list)):
+            return parsed
+    except Exception as e:
+        print(f"ast.literal_eval fallback failed: {e}")
+        
+    # 4. Fallback: Search for any JSON dictionary or list inside the string
+    try:
+        match = re.search(r'(\{.*\}|\[.*\])', raw_str, re.DOTALL)
+        if match:
+            candidate = match.group(1).strip()
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                try:
+                    import ast
+                    py_candidate = re.sub(r'\btrue\b', 'True', candidate)
+                    py_candidate = re.sub(r'\bfalse\b', 'False', py_candidate)
+                    py_candidate = re.sub(r'\bnull\b', 'None', py_candidate)
+                    parsed = ast.literal_eval(py_candidate)
+                    if isinstance(parsed, (dict, list)):
+                        return parsed
+                except Exception:
+                    pass
+    except Exception:
+        pass
+        
+    # If all fallbacks fail, do a final try or raise the original error
+    return json.loads(raw_str)
+
 def check_dependencies(ffmpeg_path):
     """Check if ffmpeg exists at the given path or in the system PATH."""
     try:
@@ -173,7 +226,7 @@ def download_youtube(url, output_dir, ytdlp_path, ffmpeg_path="ffmpeg"):
     output_template = os.path.join(output_dir, "source_video.%(ext)s")
     
     base_args = [
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
         "--merge-output-format", "mp4",
         "--ffmpeg-location", ffmpeg_path,
         "-o", output_template,
@@ -268,9 +321,9 @@ def extract_audio(video_path, output_dir, ffmpeg_path):
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path
 
-def analyze_audio_with_gemini(audio_path, api_key, clip_count=3, duration_min=30, duration_max=90):
+def analyze_audio_with_gemini(audio_path, api_key, clip_count=3, duration_min=30, duration_max=90, content_type="gameplay"):
     """Upload audio to Gemini API, transcribe and extract highlight clips."""
-    print("Uploading audio to Gemini for transcription and highlight clipping...")
+    print(f"Uploading audio to Gemini for transcription and highlight clipping (Content Type: {content_type})...")
     
     import google.generativeai as genai
     
@@ -289,6 +342,19 @@ def analyze_audio_with_gemini(audio_path, api_key, clip_count=3, duration_min=30
     if audio_file.state.name == "FAILED":
         raise Exception("Gemini audio file processing failed.")
         
+    if content_type == "gameplay":
+        content_instructions = """
+        CONTENT FOCUS: This is a GAMEPLAY/GAMING video.
+        - You MUST identify the highest energy spikes, peak gameplay momentum, clutching scenes, funny gamer shouting, epic action plays, or hype reactions in the audio.
+        - The social media descriptions (captions) should use highly energetic, exciting language suited for gaming montages, complete with gaming hashtags (e.g. #gaming, #clutch, #gamer, #gamemontage, #highlights, #fyp).
+        """
+    else:
+        content_instructions = """
+        CONTENT FOCUS: This is an ANIME scene.
+        - You MUST prioritize character dialogue climaxes, emotional moments (sad, tragic, or dramatic declarations), iconic quotes, and epic fight speech/reactions.
+        - The social media descriptions (captions) should use narrative, emotional, or exciting language suited for anime fans (otaku), complete with anime hashtags (e.g. #anime, #animeedit, #otaku, #fightscene, #sadscene, #animelover, #fyp).
+        """
+        
     prompt = f"""
     You are an expert video clipper assistant. Your objective is to analyze the attached audio file and perform the following tasks:
     1. Transcribe the dialogue carefully. The audio might be in Indonesian or English. Ensure the transcribed text has proper, clean Indonesian punctuation (periods, commas, capitalization, question marks) and format spoken numbers/digits cleanly as digits (e.g., '10.000', '90', '100%') instead of clumsy spelled-out words.
@@ -305,30 +371,31 @@ def analyze_audio_with_gemini(audio_path, api_key, clip_count=3, duration_min=30
        - If the target duration is e.g. 90 seconds, and at 90s the speaker is in the middle of a sentence, you MUST adjust 'end_seconds' (either cut it slightly earlier e.g. at 82s or extend slightly e.g. at 96s) so that the clip finishes exactly when a sentence or thought naturally ends.
        - The final video MUST feel complete and resolve cleanly, rather than cutting off abruptly.
        
-    5. Generate a catchy, highly engaging, viral title for each clip, and an extremely appealing social media description (captions) in natural Indonesian explaining what makes this clip amazing, followed by a list of trending/viral hashtags (like #fyp, #viral, #foryou, #podcast, etc.) optimized for TikTok, Instagram Reels, and YouTube Shorts so the user can easily copy-paste and post directly.
+    5. Generate a catchy, highly engaging, viral title for each clip, and an extremely appealing social media description (captions) in natural Indonesian explaining what makes this clip amazing, followed by a list of trending/viral hashtags optimized for TikTok, Instagram Reels, and YouTube Shorts so the user can easily copy-paste and post directly.
+       {content_instructions}
     6. For each clip, extract the list of subtitle lines with precise start and end times in seconds, relative to the main video.
     7. Generate a catchy, clickbaity overall title for the entire video project ('project_title') in natural Indonesian summarizing the whole conversation context.
 
     You MUST output your response strictly as a JSON object, with no markdown code blocks or extra text. Use the following JSON schema:
-    {
+    {{
       "project_title": "Catchy Overall Video Project Title",
       "clips": [
-        {
+        {{
           "title": "Viral Catchy Title",
-          "description": "Engaging Indonesian caption summarizing the clip... \n\n#fyp #viral #foryou #podcast",
+          "description": "Engaging Indonesian caption summarizing the clip... \\n\\n#fyp #viral #foryou #podcast",
           "start_seconds": 45,
           "end_seconds": 95,
           "subtitles": [
-            {
+            {{
               "start": 45.5,
               "end": 49.2,
               "text_en": "Original English sentence",
               "text_id": "Indonesian translation"
-            }
+            }}
           ]
-        }
+        }}
       ]
-    }
+    }}
     """
     
     model = genai.GenerativeModel("gemini-1.5-flash")
@@ -348,7 +415,7 @@ def analyze_audio_with_gemini(audio_path, api_key, clip_count=3, duration_min=30
         
     return json.loads(response.text)
 
-def transcribe_audio_locally(audio_path, whisper_model_size, device="cpu"):
+def transcribe_audio_locally(audio_path, whisper_model_size, device="cpu", target_language="id"):
     """Transcribe audio locally using faster-whisper."""
     try:
         from faster_whisper import WhisperModel
@@ -361,13 +428,21 @@ def transcribe_audio_locally(audio_path, whisper_model_size, device="cpu"):
     # Run Whisper model
     model = WhisperModel(whisper_model_size, device=device, compute_type=compute_type)
     
+    # Select initial prompt based on target language
+    if target_language == "en":
+        initial_prompt = "Hello! This is a clean transcript of a podcast. Use proper spelling, capitalization, commas, periods, question marks, clean numbers like 10, 5000, 100%, and clear quotes."
+    elif target_language == "id":
+        initial_prompt = "Halo! Ini adalah transkrip rekaman audio podcast Indonesia. Gunakan ejaan resmi, huruf kapital, tanda baca koma, titik, tanda tanya, angka seperti 10, 5000, 100%, serta kutipan yang jelas dan benar."
+    else:
+        initial_prompt = "Halo! This is a clean transcript. Gunakan ejaan resmi, capitalization, punctuation, numbers like 10, 5000, 100% cleanly."
+
     print("Transcribing audio locally... ini akan memakan waktu tergantung spesifikasi RAM laptop Anda.")
     segments, info = model.transcribe(
         audio_path, 
         beam_size=5, 
-        language="id", 
+        language=None, # Let Whisper auto-detect the spoken language
         word_timestamps=True,
-        initial_prompt="Halo! Ini adalah transkrip rekaman audio podcast Indonesia. Gunakan ejaan resmi, huruf kapital, tanda baca koma, titik, tanda tanya, angka seperti 10, 5000, 100%, serta kutipan yang jelas dan benar."
+        initial_prompt=initial_prompt
     )
     
     transcript_segments = []
@@ -483,13 +558,26 @@ def translate_subtitles(segments, provider, api_key="", ollama_model="llama3"):
         
     return dual_subs
 
-def analyze_transcript_with_gemini(transcript_text, api_key, clip_count=3, duration_min=30, duration_max=90):
+def analyze_transcript_with_gemini(transcript_text, api_key, clip_count=3, duration_min=30, duration_max=90, content_type="gameplay"):
     """Send transcript to Gemini API and extract highlight clips (start and end seconds)."""
-    print("Sending transcript to Gemini API for highlight clipping...")
+    print(f"Sending transcript to Gemini API for highlight clipping (Content Type: {content_type})...")
     
     import google.generativeai as genai
     genai.configure(api_key=api_key)
     
+    if content_type == "gameplay":
+        content_instructions = """
+        CONTENT FOCUS: This is a GAMEPLAY/GAMING video.
+        - You MUST identify the highest energy spikes, peak gameplay momentum, clutching scenes, funny gamer shouting, epic action plays, or hype reactions in the audio.
+        - The social media descriptions (captions) should use highly energetic, exciting language suited for gaming montages, complete with gaming hashtags (e.g. #gaming, #clutch, #gamer, #gamemontage, #highlights, #fyp).
+        """
+    else:
+        content_instructions = """
+        CONTENT FOCUS: This is an ANIME scene.
+        - You MUST prioritize character dialogue climaxes, emotional moments (sad, tragic, or dramatic declarations), iconic quotes, and epic fight speech/reactions.
+        - The social media descriptions (captions) should use narrative, emotional, or exciting language suited for anime fans (otaku), complete with anime hashtags (e.g. #anime, #animeedit, #otaku, #fightscene, #sadscene, #animelover, #fyp).
+        """
+        
     prompt = f"""
     You are an expert video clipper assistant. Your objective is to analyze the following transcript dialogue and identify exactly {clip_count} highly engaging, viral, or interesting highlight segments/clips.
     Each segment should be between {duration_min} to {duration_max} seconds. These should represent the peak moments of the video.
@@ -500,6 +588,8 @@ def analyze_transcript_with_gemini(transcript_text, api_key, clip_count=3, durat
     - NEVER cut the video off in the middle of a sentence, word, or clause! 
     - If the target duration is e.g. 90 seconds, and at 90s the speaker is in the middle of a sentence, you MUST adjust 'end_seconds' (either cut it slightly earlier e.g. at 82s or extend slightly e.g. at 96s) so that the clip finishes exactly when a sentence or thought naturally ends.
     - The final video MUST feel complete and resolve cleanly, rather than cutting off abruptly.
+
+    {content_instructions}
 
     Transcript Dialogue:
     {transcript_text}
@@ -527,49 +617,262 @@ def analyze_transcript_with_gemini(transcript_text, api_key, clip_count=3, durat
     
     return json.loads(response.text)
 
-def analyze_transcript_locally(transcript_text, ollama_model, clip_count=3, duration_min=30, duration_max=90, is_podcast=False):
-    """Send transcript to local Ollama API for highlight clipping (start and end seconds)."""
-    print(f"Sending transcript to local Ollama LLM ({ollama_model}) for highlight clipping...")
+def analyze_transcript_locally(transcript_text, ollama_model, clip_count=3, duration_min=30, duration_max=90, is_podcast=False, content_type="gameplay"):
+    """Send transcript to local Ollama API for highlight clipping (start and end seconds) with smart chunking."""
+    print(f"Sending transcript to local Ollama LLM ({ollama_model}) for highlight clipping (Content Type: {content_type})...")
     
     import requests
     ollama_url = "http://localhost:11434/api/chat"
     
-    schema_desc = """{
-      "project_title": "Catchy Overall Video Project Title in natural Indonesian summarizing the video context",
+    if content_type == "gameplay":
+        content_instructions = """
+        CONTENT FOCUS: This is a GAMEPLAY/GAMING video.
+        - You MUST identify the highest energy spikes, peak gameplay momentum, clutching scenes, funny gamer shouting, epic action plays, or hype reactions in the audio.
+        - The social media descriptions (captions) should use highly energetic, exciting language suited for gaming montages, complete with gaming hashtags (e.g. #gaming, #clutch, #gamer, #gamemontage, #highlights, #fyp).
+        """
+    else:
+        content_instructions = """
+        CONTENT FOCUS: This is an ANIME scene.
+        - You MUST prioritize character dialogue climaxes, emotional moments (sad, tragic, or dramatic declarations), iconic quotes, and epic fight speech/reactions.
+        - The social media descriptions (captions) should use narrative, emotional, or exciting language suited for anime fans (otaku), complete with anime hashtags (e.g. #anime, #animeedit, #otaku, #fightscene, #sadscene, #animelover, #fyp).
+        """
+
+    if "qwen" in ollama_model.lower():
+        schema_desc = """{
+      "project_title": "Video Highlights",
       "clips": [
         {
           "title": "Viral Catchy Title in natural Indonesian",
-          "description": "Engaging Indonesian caption summarizing the clip... \\n\\n#fyp #viral #foryou #podcast",
+          "description": "Engaging Indonesian caption summarizing the clip... \\n\\n#fyp",
           "start_seconds": 45,
           "end_seconds": 95
         }
       ]
     }"""
-
-    if is_podcast:
+        podcast_instruction = ""
+    else:
         schema_desc = """{
-      "project_title": "Catchy Overall Video Project Title in natural Indonesian summarizing the video context",
-      "clips": [
-        {
-          "title": "Viral Catchy Title in natural Indonesian",
-          "description": "Engaging Indonesian caption... \\n\\n#fyp #podcast",
-          "start_seconds": 45,
-          "end_seconds": 95,
-          "speaker_timeline": [
-            {"start": 45, "end": 60, "speaker": 1},
-            {"start": 60, "end": 75, "speaker": 2},
-            {"start": 75, "end": 95, "speaker": 1}
+          "project_title": "Catchy Overall Video Project Title in natural Indonesian summarizing the video context",
+          "clips": [
+            {
+              "title": "Viral Catchy Title in natural Indonesian",
+              "description": "Engaging Indonesian caption summarizing the clip... \\n\\n#fyp #viral #foryou #podcast",
+              "start_seconds": 45,
+              "end_seconds": 95
+            }
           ]
-        }
-      ]
-    }"""
+        }"""
 
-    podcast_instruction = ""
-    if is_podcast:
-        podcast_instruction = """
-    4. DETECT SPEAKERS: Analyze the dialogue flow and assign speaker turns. In your 'speaker_timeline' array, break down the clip into sub-segments where 'speaker': 1 is the main speaker/host, and 'speaker': 2 is the guest/responder. Keep timelines sequential covering the entire range from 'start_seconds' to 'end_seconds'.
+        if is_podcast:
+            schema_desc = """{
+          "project_title": "Catchy Overall Video Project Title in natural Indonesian summarizing the video context",
+          "clips": [
+            {
+              "title": "Viral Catchy Title in natural Indonesian",
+              "description": "Engaging Indonesian caption... \\n\\n#fyp #podcast",
+              "start_seconds": 45,
+              "end_seconds": 95,
+              "speaker_timeline": [
+                {"start": 45, "end": 60, "speaker": 1},
+                {"start": 60, "end": 75, "speaker": 2},
+                {"start": 75, "end": 95, "speaker": 1}
+              ]
+            }
+          ]
+        }"""
+
+        podcast_instruction = ""
+        if is_podcast:
+            podcast_instruction = """
+        4. DETECT SPEAKERS: Analyze the dialogue flow and assign speaker turns. In your 'speaker_timeline' array, break down the clip into sub-segments where 'speaker': 1 is the main speaker/host, and 'speaker': 2 is the guest/responder. Keep timelines sequential covering the entire range from 'start_seconds' to 'end_seconds'.
+        """
+
+    # Activating chunking for local LLMs on long transcripts to prevent context truncation and severe CPU slowdown
+    if "qwen" in ollama_model.lower() or len(transcript_text) > 25000:
+        print(f"[Local LLM] Long transcript ({len(transcript_text)} chars) or Qwen model active. "
+              "Activating focused window chunking to prevent context truncation and ensure rapid inference...")
+
+        if "qwen" in ollama_model.lower():
+            CHUNK_WINDOW_SEC = min(180, max(120, duration_max))
+        else:
+            CHUNK_WINDOW_SEC = max(300, int(duration_max * 1.5))
+
+        def _ts(line):
+            """Parse leading timestamp [X.Xs - Y.Ys] -> float seconds, or None."""
+            try:
+                return float(line.split("[")[1].split("s")[0].strip())
+            except Exception:
+                return None
+
+        # Build chunks by time window
+        chunks, buf, win_start = [], [], None
+        for line in transcript_text.strip().split("\n"):
+            t = _ts(line)
+            if t is None:
+                if buf:
+                    buf.append(line)
+                continue
+            if win_start is None:
+                win_start = t
+            buf.append(line)
+            if t - win_start >= CHUNK_WINDOW_SEC:
+                chunks.append(("\n".join(buf), win_start, t))
+                buf, win_start = [], None
+        if buf:
+            last_t = _ts(buf[-1]) or (win_start or 0)
+            chunks.append(("\n".join(buf), win_start or 0, last_t))
+
+        print(f"[Local LLM] {len(chunks)} chunk(s) created. Querying 1 clip per chunk...")
+
+        all_clips, project_title = [], "Video Highlights"
+
+        for i, (chunk_text, c_start, c_end) in enumerate(chunks):
+            print(f"[Local LLM Chunk {i+1}/{len(chunks)}] {c_start:.0f}s - {c_end:.0f}s ...")
+            if "qwen" in ollama_model.lower():
+                # Qwen line-number-picker: never show seconds to Qwen.
+                _ts_rx2 = re.compile(r'\[([\d\.]+)s\s*-\s*([\d\.]+)s\]')
+                numbered_lines = []
+                for ln in chunk_text.strip().split("\n"):
+                    m2 = _ts_rx2.search(ln)
+                    if m2:
+                        text_part = ln[m2.end():].strip()
+                        numbered_lines.append((len(numbered_lines) + 1,
+                                               float(m2.group(1)),
+                                               float(m2.group(2)),
+                                               text_part))
+
+                if len(numbered_lines) < 3:
+                    print(f"  [Qwen Chunk {i+1}] Too few lines ({len(numbered_lines)}), skipping.")
+                    continue
+
+                nl_text = "\n".join(f"{n}. {txt}" for n, _, _, txt in numbered_lines)
+                n_lines = len(numbered_lines)
+                chunk_dur = max(c_end - c_start, 1)
+                target_sec = (duration_min + duration_max) / 2
+                lines_per_sec = n_lines / chunk_dur
+                target_lines = max(3, min(n_lines - 1, int(target_sec * lines_per_sec)))
+
+                chunk_prompt = f"""Baca daftar kalimat video berikut:
+
+{nl_text}
+
+Dari daftar di atas (total {n_lines} kalimat), pilih 1 bagian yang paling menarik dan emosional.
+Bagian yang dipilih harus mencakup sekitar {target_lines} kalimat berurutan.
+
+Balas HANYA dengan JSON objek. Field:
+- title: string
+- description: string
+- start_line: integer (nomor baris mulai)
+- end_line: integer (nomor baris selesai)
+
+Pastikan format JSON valid."""
+
+                try:
+                    payload = {
+                        "model": ollama_model,
+                        "messages": [{"role": "user", "content": chunk_prompt}],
+                        "stream": False,
+                        "options": {"num_ctx": 4096, "num_predict": 256, "temperature": 0.3}
+                    }
+                    response = requests.post(ollama_url, json=payload, timeout=600)
+                    response.raise_for_status()
+                    raw_content = response.json()['message']['content'].strip()
+                    print(f"  [Qwen Chunk {i+1}] Raw: {raw_content[:200]}")
+
+                    parsed = clean_and_parse_json(raw_content)
+                    sl = int(parsed.get("start_line", 1))
+                    el = int(parsed.get("end_line", target_lines))
+
+                    sl = max(1, min(sl, n_lines))
+                    el = max(sl + 1, min(el, n_lines))
+
+                    real_start = numbered_lines[sl - 1][1]
+                    real_end   = numbered_lines[el - 1][2]
+                    dur = real_end - real_start
+
+                    if dur < duration_min:
+                        for ext in range(el, n_lines + 1):
+                            real_end = numbered_lines[ext - 1][2]
+                            if real_end - real_start >= duration_min:
+                                break
+                    elif dur > duration_max * 1.5:
+                        for shr in range(el, sl, -1):
+                            real_end = numbered_lines[shr - 1][2]
+                            if real_end - real_start <= duration_max * 1.2:
+                                break
+
+                    dur = real_end - real_start
+                    title = parsed.get("title", "Highlight")
+                    desc  = parsed.get("description", "")
+                    print(f"  [Qwen Chunk {i+1}] Lines {sl}-{el} -> {real_start:.1f}s-{real_end:.1f}s ({dur:.1f}s): {title}")
+
+                    if duration_min * 0.7 <= dur <= duration_max * 1.5:
+                        all_clips.append({
+                            "title": title,
+                            "description": desc,
+                            "start_seconds": real_start,
+                            "end_seconds": real_end
+                        })
+                    else:
+                        print(f"  [Qwen Chunk {i+1}] Duration {dur:.1f}s out of range, skipped.")
+                except Exception as err:
+                    print(f"  [Qwen Chunk {i+1}] Skipped: {err}")
+                continue
+
+            # Non-Qwen models
+            else:
+                chunk_prompt = f"""
+    You are an expert video clipper assistant. Analyze this transcript segment and identify exactly 1 highly engaging, viral, or interesting highlight clip.
+    The clip MUST be between {duration_min} to {duration_max} seconds long — the single BEST peak moment in this segment.
+
+    CRITICAL RULES:
+    1. DO NOT include intros, silent parts, or non-speech segments.
+    2. 'start_seconds' MUST align with the beginning of a complete sentence — never mid-sentence.
+    3. 'end_seconds' MUST align with the end of a complete sentence or when the speaker finishes naturally.
+    4. NEVER cut off mid-sentence. Adjust slightly if needed.
+    5. Focus on emotionally impactful, thought-provoking, surprising, or highly informative moments.{podcast_instruction}
+
+    {content_instructions}
+
+    Transcript Segment ({c_start:.0f}s - {c_end:.0f}s):
+    {chunk_text}
+
+    You MUST output your response strictly as a JSON object, with no markdown code blocks, backticks, or extra text. Use the following JSON schema:
+    {schema_desc}
     """
+            try:
+                response = requests.post(ollama_url, json={
+                    "model": ollama_model,
+                    "messages": [{"role": "user", "content": chunk_prompt}],
+                    "stream": False,
+                    "format": "json",
+                    "options": {"num_ctx": 4096, "num_predict": 2048, "temperature": 0.1}
+                }, timeout=300)
+                response.raise_for_status()
+                raw_content = response.json()['message']['content'].strip()
+                print(f"[Local LLM Chunk {i+1}] Preview: {raw_content[:180]}...")
+                parsed = clean_and_parse_json(raw_content)
+                if parsed.get('project_title') and project_title == "Video Highlights":
+                    project_title = parsed['project_title']
+                clips_found = parsed.get('clips', [])
+                all_clips.extend(clips_found)
+            except Exception as err:
+                print(f"[Local LLM Chunk {i+1}] Skipped: {err}")
+                continue
 
+        def _score(c):
+            try:
+                d = float(c.get('end_seconds', 0)) - float(c.get('start_seconds', 0))
+                return -abs(d - (duration_min + duration_max) / 2)
+            except Exception:
+                return -9999
+
+        all_clips.sort(key=_score, reverse=True)
+        selected = all_clips[:clip_count]
+        print(f"[Local LLM] Done — {len(all_clips)} candidates, returning top {len(selected)}.")
+        return {"project_title": project_title, "clips": selected}
+
+    # Otherwise fallback to single pass for Llama3 or shorter transcripts
     prompt = f"""
     You are an expert video clipper assistant. Your objective is to analyze the following transcript dialogue which contains speech timestamps in the format '[start_seconds - end_seconds]' next to each spoken line.
     Using these timestamps, identify exactly {clip_count} highly engaging, viral, or interesting highlight segments/clips.
@@ -577,7 +880,7 @@ def analyze_transcript_locally(transcript_text, ollama_model, clip_count=3, dura
 
     CRITICAL RULES:
     1. DO NOT include video intros, B-roll, silent parts, or non-speech segments at the beginning or end of your selected timestamps.
-    2. The 'start_seconds' MUST point exactly to the timestamp of the first word where the speaker actually starts talking in the clip.
+    2. The 'start_seconds' POINT exactly to the timestamp of the first word where the speaker actually starts talking in the clip.
     3. Focus on continuous, high-energy, information-dense dialogue. Skip segments with long pauses or background music without dialogue.
     4. CRITICAL TIMESTAMP RULES (PREVENT ABRUPT CUTS):
        - The 'start_seconds' MUST align exactly with the beginning of a complete, natural sentence. Do not start a clip mid-sentence or mid-phrase!
@@ -585,6 +888,8 @@ def analyze_transcript_locally(transcript_text, ollama_model, clip_count=3, dura
        - NEVER cut the video off in the middle of a sentence, word, or clause! 
        - If the target duration is e.g. 90 seconds, and at 90s the speaker is in the middle of a sentence, you MUST adjust 'end_seconds' (either cut it slightly earlier e.g. at 82s or extend slightly e.g. at 96s) so that the clip finishes exactly when a sentence or thought naturally ends.
        - The final video MUST feel complete and resolve cleanly, rather than cutting off abruptly.{podcast_instruction}
+
+    {content_instructions}
 
     Transcript Dialogue:
     {transcript_text}
@@ -599,12 +904,14 @@ def analyze_transcript_locally(transcript_text, ollama_model, clip_count=3, dura
             {"role": "user", "content": prompt}
         ],
         "stream": False,
-        "format": "json",
         "options": {
-            "num_ctx": 8192,
+            "num_ctx": 4096,
+            "num_predict": 2048,
             "temperature": 0.1
         }
     }
+    if "qwen" not in ollama_model.lower():
+        payload["format"] = "json"
 
     try:
         response = requests.post(ollama_url, json=payload, timeout=300)
@@ -612,15 +919,12 @@ def analyze_transcript_locally(transcript_text, ollama_model, clip_count=3, dura
         ollama_response = response.json()
         raw_content = ollama_response['message']['content']
         
-        # Clean any accidental markdown output
-        raw_content = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip(), flags=re.MULTILINE)
-        
         print("DEBUG_RAW_OLLAMA_RESPONSE_START")
         print(raw_content)
         print("DEBUG_RAW_OLLAMA_RESPONSE_END")
         
         try:
-            return json.loads(raw_content)
+            return clean_and_parse_json(raw_content)
         except Exception as json_err:
             print(f"JSON_PARSE_ERROR_ON_CONTENT: {raw_content}")
             raise Exception(f"Failed to parse JSON from local LLM: {str(json_err)}")
@@ -776,16 +1080,16 @@ def mix_bgm_audio(video_path, bgm_path, ffmpeg_path, duration):
             except Exception:
                 pass
 
-def slice_video(video_path, start_sec, end_sec, output_path, ffmpeg_path, watermark="", orientation="16:9", is_podcast=False, speaker_timeline=None, engine_mode="standard", transcript_path=None, title="", intro_hook="", burn_subtitles=True, bgm_path=None):
+def slice_video(video_path, start_sec, end_sec, output_path, ffmpeg_path, watermark="", orientation="16:9", is_podcast=False, speaker_timeline=None, engine_mode="standard", transcript_path=None, title="", intro_hook="", burn_subtitles=True, bgm_path=None, content_type="gameplay"):
     """Slice a video into a smaller clip using FFmpeg, optionally cropping to 9:16 vertical."""
-    print(f"Slicing clip from {start_sec}s to {end_sec}s with {orientation} orientation (Podcast: {is_podcast}, Engine: {engine_mode}, Burn Subtitles: {burn_subtitles})...")
+    print(f"Slicing clip from {start_sec}s to {end_sec}s with {orientation} orientation (Podcast: {is_podcast}, Engine: {engine_mode}, Burn Subtitles: {burn_subtitles}, Content Type: {content_type})...")
     
     if os.path.exists(output_path):
         os.remove(output_path)
 
     if engine_mode in ["opsi_a", "opsi_b"]:
         # Execute the computer vision reframe and subtitle generator!
-        # Runs: python processor.py <video_path> <output_path> <start_sec> <end_sec> <transcript_path> <watermark> <title> <intro_hook> <split_screen> <engine_mode> <speaker_timeline_json>
+        # Runs: python processor.py <video_path> <output_path> <start_sec> <end_sec> <transcript_path> <watermark> <title> <intro_hook> <split_screen> <engine_mode> <speaker_timeline_json> <content_type>
         import sys
         
         split_screen = "1" if is_podcast else "0"
@@ -811,7 +1115,8 @@ def slice_video(video_path, start_sec, end_sec, output_path, ffmpeg_path, waterm
             intro_hook or "",
             split_screen,
             engine_mode,
-            speaker_timeline_json
+            speaker_timeline_json or "",
+            content_type
         ]
         
         print(f"Running Computer Vision Reframer (Engine Mode: {engine_mode}): {' '.join(cmd)}")
@@ -849,6 +1154,12 @@ def slice_video(video_path, start_sec, end_sec, output_path, ffmpeg_path, waterm
                 
                 # Apply watermark if defined
                 filters = [crop_filter]
+                if orientation == "9:16":
+                    filters.append("scale=720:1280:flags=lanczos")
+                    filters.append("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=1.0")
+                elif orientation == "16:9":
+                    filters.append("scale=1280:720:flags=lanczos")
+                    filters.append("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=1.0")
                 wm_filter = _build_watermark_filter(watermark)
                 if wm_filter:
                     filters.append(wm_filter)
@@ -926,6 +1237,11 @@ def slice_video(video_path, start_sec, end_sec, output_path, ffmpeg_path, waterm
     # 9:16 Mobile Portrait Center-Crop Filter
     if orientation == "9:16":
         filters.append("crop=ih*9/16:ih:(iw-ih*9/16)/2:0")
+        filters.append("scale=720:1280:flags=lanczos")
+        filters.append("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=1.0")
+    elif orientation == "16:9":
+        filters.append("scale=1280:720:flags=lanczos")
+        filters.append("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=1.0")
         
     wm_filter = _build_watermark_filter(watermark)
     if wm_filter:
@@ -965,7 +1281,7 @@ def slice_video(video_path, start_sec, end_sec, output_path, ffmpeg_path, waterm
 def main():
     parser = argparse.ArgumentParser(description="AI Video Clipper Engine (Hybrid Cloud & Local)")
     parser.add_argument("--source", required=True, help="Video file path or YouTube URL")
-    parser.add_argument("--type", choices=["upload", "youtube"], required=True, help="Type of source")
+    parser.add_argument("--type", choices=["upload", "youtube", "local_path"], required=True, help="Type of source")
     parser.add_argument("--output-dir", required=True, help="Directory to save the results")
     parser.add_argument("--provider", choices=["gemini", "local"], default="gemini", help="AI Provider: gemini or local")
     parser.add_argument("--api-key", default="", help="Gemini API Key (required for gemini provider)")
@@ -983,6 +1299,8 @@ def main():
     parser.add_argument("--disable-burn-subtitles", action="store_true", help="Disable burning/hardcoding subtitles into video frames")
     parser.add_argument("--is-podcast", action="store_true", help="Flag if the video is a podcast")
     parser.add_argument("--bgm", default="", help="Path to background music file to overlay")
+    parser.add_argument("--content-type", default="gameplay", choices=["gameplay", "anime"], help="Content mode: gameplay highlights or anime scenes")
+    parser.add_argument("--language", choices=["id", "en", "dual"], default="id", help="Subtitle/caption target language")
     
     args = parser.parse_args()
     
@@ -1097,7 +1415,8 @@ def main():
                 transcript_segments, full_transcript_text, detected_language = transcribe_audio_locally(
                     audio_path,
                     args.whisper_model,
-                    device=args.whisper_device
+                    device=args.whisper_device,
+                    target_language=args.language
                 )
                 whisper_success = True
                 
@@ -1123,7 +1442,8 @@ def main():
                     args.api_key,
                     clip_count=args.clip_count,
                     duration_min=args.clip_duration_min,
-                    duration_max=args.clip_duration_max
+                    duration_max=args.clip_duration_max,
+                    content_type=args.content_type
                 )
             else:
                 # Group adjacent segments to heavily optimize context size for local offline LLMs
@@ -1135,7 +1455,8 @@ def main():
                     clip_count=args.clip_count,
                     duration_min=args.clip_duration_min,
                     duration_max=args.clip_duration_max,
-                    is_podcast=args.is_podcast
+                    is_podcast=args.is_podcast,
+                    content_type=args.content_type
                 )
         else:
             # Fallback: if local Whisper failed, upload file to Gemini if using gemini
@@ -1147,7 +1468,8 @@ def main():
                     args.api_key,
                     clip_count=args.clip_count,
                     duration_min=args.clip_duration_min,
-                    duration_max=args.clip_duration_max
+                    duration_max=args.clip_duration_max,
+                    content_type=args.content_type
                 )
             else:
                 raise Exception("Local transcription failed and provider is local. Cannot continue.")
@@ -1253,7 +1575,8 @@ def main():
                 title=clip_title,
                 intro_hook=clip_desc,
                 burn_subtitles=not args.disable_burn_subtitles,
-                bgm_path=args.bgm
+                bgm_path=args.bgm,
+                content_type=args.content_type
             )
             
             # Subtitle prefix

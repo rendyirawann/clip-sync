@@ -30,10 +30,11 @@ class VideoClipperController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'source_type' => 'required|in:upload,youtube',
+            'source_type' => 'required|in:upload,youtube,local_path',
             'title' => 'nullable|string|max:255',
             'youtube_url' => 'required_if:source_type,youtube|nullable|url',
             'video_file' => 'required_if:source_type,upload|nullable|file|mimes:mp4,mov,avi,mkv|max:102400', // 100MB max
+            'local_path' => 'required_if:source_type,local_path|nullable|string',
             'clip_count' => 'nullable|integer|min:1|max:10',
             'duration' => 'nullable|integer|in:30,60,90,120,180,360',
             'watermark' => 'nullable|string|max:100',
@@ -44,9 +45,11 @@ class VideoClipperController extends Controller
             'is_podcast' => 'nullable|boolean',
             'engine_mode' => 'nullable|in:standard,opsi_a,opsi_b',
             'burn_subtitles' => 'nullable|boolean',
+            'language' => 'nullable|in:id,en,dual',
         ], [
             'youtube_url.required_if' => 'Kolom Link YouTube harus diisi jika tipe sumber adalah YouTube.',
             'video_file.required_if' => 'File video harus diunggah jika tipe sumber adalah Upload PC.',
+            'local_path.required_if' => 'Kolom Path File Lokal harus diisi jika tipe sumber adalah Path File Lokal.',
             'video_file.max' => 'Ukuran video maksimal adalah 100MB.',
             'video_file.mimes' => 'Format video yang didukung adalah MP4, MOV, AVI, dan MKV.',
             'clip_count.max' => 'Jumlah maksimal klip yang diizinkan adalah 10.',
@@ -85,6 +88,7 @@ class VideoClipperController extends Controller
             $video->is_podcast = $request->has('is_podcast') ? (bool)$request->is_podcast : false;
             $video->engine_mode = $request->engine_mode ?: 'standard';
             $video->burn_subtitles = $request->has('burn_subtitles') ? (bool)$request->burn_subtitles : false;
+            $video->language = $request->language ?: 'id';
             
             // Set dynamic AI provider and model from request
             $video->provider = $request->provider ?: 'gemini';
@@ -92,14 +96,30 @@ class VideoClipperController extends Controller
                 $video->model = 'Gemini 1.5 Flash';
             } else {
                 $video->model = $request->model === 'custom' 
-                    ? ($request->custom_model ?: 'llama3') 
-                    : ($request->model ?: 'llama3');
+                    ? ($request->custom_model ?: 'llama3.1') 
+                    : ($request->model ?: 'llama3.1');
             }
             
             $video->status = 'pending';
 
             if ($request->source_type === 'youtube') {
                 $video->source_url = $request->youtube_url;
+            } elseif ($request->source_type === 'local_path') {
+                // Strip outer quotes if any (e.g. "D:\video.mp4" -> D:\video.mp4)
+                $localPath = trim($request->local_path, " \t\n\r\0\x0B\"'");
+                
+                // Validate if file exists
+                if (!file_exists($localPath)) {
+                    return redirect()->back()->withInput()->with('error', 'File video lokal tidak ditemukan di lokasi: ' . $localPath);
+                }
+                
+                // Validate file extension
+                $ext = strtolower(pathinfo($localPath, PATHINFO_EXTENSION));
+                if (!in_array($ext, ['mp4', 'mov', 'avi', 'mkv'])) {
+                    return redirect()->back()->withInput()->with('error', 'Format video tidak didukung. Gunakan format MP4, MOV, AVI, atau MKV.');
+                }
+                
+                $video->file_path = $localPath; // Store absolute local path directly
             } else {
                 // Local PC Upload
                 if ($request->hasFile('video_file')) {

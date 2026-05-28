@@ -25,7 +25,7 @@ class ProcessGameVideoJob implements ShouldQueue
      *
      * @var int
      */
-    public $timeout = 3600; // 1 hour
+    public $timeout = 0; // Unlimited / No timeout
 
     /**
      * Create a new job instance.
@@ -54,7 +54,7 @@ class ProcessGameVideoJob implements ShouldQueue
 
             // Retrieve configuration values
             $aiProvider = $video->provider ?: env('AI_PROVIDER', 'gemini');
-            $ollamaModel = ($video->provider === 'local' ? $video->model : null) ?: env('OLLAMA_MODEL', 'llama3');
+            $ollamaModel = ($video->provider === 'local' ? $video->model : null) ?: env('OLLAMA_MODEL', 'llama3.1');
             $whisperModel = env('WHISPER_MODEL', 'base');
             $ffmpegPath = env('FFMPEG_PATH', 'ffmpeg');
             $ytdlpPath = env('YT_DLP_PATH', 'yt-dlp');
@@ -109,6 +109,11 @@ class ProcessGameVideoJob implements ShouldQueue
             if ($video->source_type === 'youtube') {
                 $sourceInput = $video->source_url;
                 $video->update(['status' => 'downloading']);
+            } elseif ($video->source_type === 'local_path') {
+                $sourceInput = $video->file_path; // Local absolute path
+                if (!file_exists($sourceInput)) {
+                    throw new \Exception("Local source video file not found at: " . $sourceInput);
+                }
             } else {
                 // Uploaded local video
                 $sourceInput = storage_path("app/public/" . $video->file_path);
@@ -160,6 +165,11 @@ class ProcessGameVideoJob implements ShouldQueue
                 $command[] = $video->engine_mode;
             }
 
+            if ($video->content_type) {
+                $command[] = '--content-type';
+                $command[] = $video->content_type;
+            }
+
             if (!$video->burn_subtitles) {
                 $command[] = '--disable-burn-subtitles';
             }
@@ -186,7 +196,7 @@ class ProcessGameVideoJob implements ShouldQueue
             $video->update(['status' => 'transcribing']); // Moving into transcription/moment processing
 
             $process = new Process($command);
-            $process->setTimeout($this->timeout);
+            $process->setTimeout($this->timeout > 0 ? $this->timeout : null);
             $process->run();
 
             // Check if process completed successfully

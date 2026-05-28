@@ -133,15 +133,15 @@
                                     <div class="row g-0 align-items-stretch">
                                         <!-- Player Column -->
                                         <div class="col-xl-6 bg-dark rounded-start overflow-hidden d-flex align-items-center justify-content-center position-relative" style="min-height: 250px;">
-                                            <!-- Floating Live Slicing Timer Card -->
-                                            <div class="position-absolute top-0 start-0 m-4 p-3 rounded bg-dark bg-opacity-75 text-white fs-8 fw-semibold border border-white border-opacity-10 shadow d-flex flex-column gap-1" style="z-index: 10; backdrop-filter: blur(4px);">
+                                            <!-- Floating Live Slicing Timer Card (Bottom-Left) -->
+                                            <div class="position-absolute bottom-0 start-0 m-3 px-3 py-2 rounded bg-dark bg-opacity-75 text-white fs-9 fw-semibold border border-white border-opacity-10 shadow d-flex flex-column gap-1" style="z-index: 10; backdrop-filter: blur(4px);">
                                                 <div class="d-flex align-items-center">
-                                                    <span class="bullet bullet-dot bg-danger h-8px w-8px pulse-red me-2"></span>
-                                                    <span>Slicing Timer: <span id="timer_stopwatch_{{ $clip->id }}" class="text-warning">00:00</span></span>
+                                                    <span class="bullet bullet-dot bg-danger h-6px w-6px pulse-red me-2"></span>
+                                                    <span>{{ ($video->language ?? 'id') === 'en' ? 'Clip Timer' : 'Slicing Timer' }}: <span id="timer_stopwatch_{{ $clip->id }}" class="text-warning">00:00</span></span>
                                                 </div>
                                                 <div class="text-white-50 fs-9 d-flex align-items-center mt-1">
-                                                    <i class="ki-duotone ki-time fs-8 text-primary me-1.5"><span class="path1"></span><span class="path2"></span></i>
-                                                    <span>Waktu Asli: <span id="timer_absolute_{{ $clip->id }}" class="text-success">{{ $clip->start_time }}</span></span>
+                                                    <i class="ki-duotone ki-time fs-9 text-primary me-1"><span class="path1"></span><span class="path2"></span></i>
+                                                    <span>{{ ($video->language ?? 'id') === 'en' ? 'Original Time' : 'Waktu Asli' }}: <span id="timer_absolute_{{ $clip->id }}" class="text-success">{{ $clip->start_time }}</span></span>
                                                 </div>
                                             </div>
 
